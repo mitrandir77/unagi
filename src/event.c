@@ -28,6 +28,7 @@
 #include "event.h"
 #include "util.h"
 #include "render.h"
+#include "window.h"
 
 #define ERROR_GET_MAJOR_CODE(e) (XCB_EVENT_REQUEST_TYPE(e))
 #define ERROR_GET_MINOR_CODE(e) (*((uint16_t *) e + 4))
@@ -210,10 +211,14 @@ event_handle_damage_notify(void *data __attribute__((unused)),
 			   xcb_connection_t *c __attribute__((unused)),
 			   xcb_damage_notify_event_t *event)
 {
-  debug("DamageNotify: area: %jux%ju %+jd %+jd (drawable=%jx)",
+  debug("DamageNotify: area: %jux%ju %+jd %+jd (drawable=%jx,area=%jux%ju +%jd +%jd,geometry=%jux%ju +%jd +%jd)",
 	(uintmax_t) event->area.width, (uintmax_t) event->area.height,
 	(intmax_t) event->area.x, (intmax_t) event->area.y,
-	(uintmax_t) event->drawable);
+	(uintmax_t) event->drawable,
+	(uintmax_t) event->area.width, (uintmax_t) event->area.height,
+	(uintmax_t) event->area.x, (uintmax_t) event->area.y,
+	(uintmax_t) event->geometry.width, (uintmax_t) event->geometry.height,
+	(uintmax_t) event->geometry.x, (uintmax_t) event->geometry.y);
 
   window_t *window = window_list_get(event->drawable);
 
@@ -271,6 +276,8 @@ event_handle_create_notify(void *data __attribute__((unused)),
   debug("CreateNotify: parent=%jx, window=%jx",
 	(uintmax_t) event->parent, (uintmax_t) event->window);
 
+  window_add_one(event->window);
+
   return 0;
 }
 
@@ -282,6 +289,9 @@ event_handle_destroy_notify(void *data __attribute__((unused)),
   debug("DestroyNotify: parent=%jx, window=%jx",
 	(uintmax_t) event->event, (uintmax_t) event->window);
 
+  window_t *window = window_list_get(event->window);
+  window_list_remove_window(window);
+
   return 0;
 }
 
@@ -292,6 +302,11 @@ event_handle_map_notify(void *data __attribute__((unused)),
 {
   debug("MapNotify: event=%jx, window=%jx",
 	(uintmax_t) event->event, (uintmax_t) event->window);
+
+  window_t *window = window_list_get(event->window);
+
+  window->attributes->map_state = XCB_MAP_STATE_VIEWABLE;
+  window_map(window);
 
   return 0;
 }
@@ -315,6 +330,29 @@ event_handle_unmap_notify(void *data __attribute__((unused)),
 {
   debug("UnmapNotify: event=%jx, window=%jx",
 	(uintmax_t) event->event, (uintmax_t) event->window);
+
+  window_t *window = window_list_get(event->window);
+  if(!window)
+    {
+      warn("Window %jx disappeared", (uintmax_t) event->window);
+      return 0;
+    }
+
+  /* TODO */
+  if(window->pixmap)
+    {
+      xcb_free_pixmap(globalconf.connection, window->pixmap);
+      window->pixmap = XCB_NONE;
+    }
+
+  if(window->picture)
+    {
+      xcb_render_free_picture(globalconf.connection, window->picture);
+      window->picture = XCB_NONE;
+    }
+
+  window->attributes->map_state = XCB_MAP_STATE_UNMAPPED;
+  window->damaged = false;
 
   return 0;
 }

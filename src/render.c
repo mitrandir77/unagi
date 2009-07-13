@@ -133,6 +133,17 @@ render_root_background_fill(xcb_render_picture_t dst)
 			     dst, root_color, 1, &root_rectangle);
 }
 
+static inline void
+render_paint_root_background(void)
+{
+  /* Render the background with the root Picture */
+  xcb_render_composite(globalconf.connection, XCB_RENDER_PICT_OP_SRC,
+		       globalconf.root_background_picture, XCB_NONE,
+		       globalconf.root_picture, 0, 0, 0, 0, 0, 0,
+		       globalconf.screen->width_in_pixels,
+		       globalconf.screen->height_in_pixels);
+}
+
 static void
 render_init_root_background(void)
 {
@@ -145,14 +156,14 @@ render_init_root_background(void)
       debug("No background pixmap set, set default background color");
       root_background_pixmap = window_new_root_background_pixmap();
       root_background_fill = true;
-    }
+   }
 
-  uint32_t root_buffer = xcb_generate_id(globalconf.connection);
+  globalconf.root_background_picture = xcb_generate_id(globalconf.connection);
   const uint32_t root_buffer_val = true;
 
   /* Create a new picture holding the background pixmap */
   xcb_render_create_picture(globalconf.connection,
-			    root_buffer,
+			    globalconf.root_background_picture,
 			    root_background_pixmap,
 			    globalconf.root_pictvisual->format,
 			    XCB_RENDER_CP_REPEAT, &root_buffer_val);
@@ -160,17 +171,10 @@ render_init_root_background(void)
   if(root_background_fill)
     {
       xcb_free_pixmap(globalconf.connection, root_background_pixmap);
-      render_root_background_fill(root_buffer);
+      render_root_background_fill(globalconf.root_background_picture);
     }
-     
-  /* Render the new picture with the root Picture */
-  xcb_render_composite(globalconf.connection, XCB_RENDER_PICT_OP_SRC,
-		       root_buffer, XCB_NONE, globalconf.root_picture,
-		       0, 0, 0, 0, 0, 0,
-		       globalconf.screen->width_in_pixels,
-		       globalconf.screen->height_in_pixels);
 
-  xcb_render_free_picture(globalconf.connection, root_buffer);
+  render_paint_root_background();
 }
 
 static bool
@@ -241,26 +245,36 @@ render_init_finalise(void)
 void
 render_paint_all(void)
 {
+  render_paint_root_background();
+
   for(window_t *window = globalconf.windows; window; window = window->next)
     {
+      if(!window->damaged)
+	continue;
+
       debug("Painting window %jx", (uintmax_t) window->id);
-      
-      xcb_render_picture_t picture = xcb_generate_id(globalconf.connection);
-      const uint32_t repeat = XCB_SUBWINDOW_MODE_INCLUDE_INFERIORS;
 
-      xcb_render_pictvisual_t *window_pictvisual =
-	xcb_render_util_find_visual_format(globalconf.pict_formats,
-					   window->attributes->visual);
+      if(window->picture == XCB_NONE)
+	{
+	  debug("Creating new picture for window %jx", (uintmax_t) window->id);
 
-      xcb_render_create_picture(globalconf.connection,
-				picture, window->pixmap,
-				window_pictvisual->format,
-				XCB_RENDER_CP_SUBWINDOW_MODE,
-				&repeat);
+	  window->picture = xcb_generate_id(globalconf.connection);
+	  const uint32_t create_picture_val = XCB_SUBWINDOW_MODE_INCLUDE_INFERIORS;
+
+	  xcb_render_pictvisual_t *window_pictvisual =
+	    xcb_render_util_find_visual_format(globalconf.pict_formats,
+					       window->attributes->visual);
+
+	  xcb_render_create_picture(globalconf.connection,
+				    window->picture, window->pixmap,
+				    window_pictvisual->format,
+				    XCB_RENDER_CP_SUBWINDOW_MODE,
+				    &create_picture_val);
+	}
 
       xcb_render_composite(globalconf.connection,
 			   XCB_RENDER_PICT_OP_SRC,
-			   picture, XCB_NONE, globalconf.root_picture,
+			   window->picture, XCB_NONE, globalconf.root_picture,
 			   0, 0, 0, 0,
 			   window->geometry->x,
 			   window->geometry->y,
@@ -300,4 +314,5 @@ render_cleanup(void)
 {
   free(globalconf.pict_formats);
   xcb_render_free_picture(globalconf.connection, globalconf.root_picture);
+  xcb_render_free_picture(globalconf.connection, globalconf.root_background_picture);
 }

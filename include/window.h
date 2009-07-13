@@ -43,11 +43,14 @@ typedef struct _window_t
 
 #define OPACITY_OPAQUE UINT_MAX
 
+void window_free_pixmap(window_t *);
 void window_list_cleanup(void);
-window_t *window_list_get(const xcb_window_t window_id);
+window_t *window_list_get(const xcb_window_t);
+void window_list_remove_window(window_t *);
 void window_get_root_background_pixmap(void);
 xcb_pixmap_t window_get_root_background_pixmap_finalise(void);
 xcb_pixmap_t window_new_root_background_pixmap(void);
+void window_map(window_t *);
 void window_add_all(const int nwindows, const xcb_window_t *);
 void window_add_one(const xcb_window_t);
 

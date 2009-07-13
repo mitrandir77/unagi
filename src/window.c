@@ -47,7 +47,7 @@ window_list_add(const xcb_window_t new_window_id)
   return new_window;
 }
 
-static inline void
+void
 window_free_pixmap(window_t *window)
 {
   if(window->pixmap)
@@ -55,6 +55,52 @@ window_free_pixmap(window_t *window)
       xcb_free_pixmap(globalconf.connection, window->pixmap);
       window->pixmap = XCB_NONE;
     }
+}
+
+static void
+window_list_free_window(window_t *window)
+{
+  window_free_pixmap(window);
+
+  if(window->picture != XCB_NONE)
+    {
+      xcb_render_free_picture(globalconf.connection, window->picture);
+      window->picture = XCB_NONE;
+    }
+
+  /* Destroy the damage object if any */
+  if(window->damage != XCB_NONE)
+    {
+      xcb_damage_destroy(globalconf.connection, window->damage);
+      window->damage = XCB_NONE;
+    }
+
+  free(window->attributes);
+  free(window->geometry);
+  free(window);
+}
+
+void
+window_list_remove_window(window_t *window_delete)
+{
+  if(!globalconf.windows)
+    return;
+
+  if(globalconf.windows == window_delete)
+    {
+      window_t *old_window = globalconf.windows;
+      globalconf.windows = globalconf.windows->next;
+
+      window_list_free_window(old_window);
+    }
+  else
+    for(window_t *window = globalconf.windows; window->next; window = window->next)
+      if(window->next == window_delete)
+	{
+	  window->next = window->next->next;
+	  window_list_free_window(window_delete);
+	  break;
+	}
 }
 
 void
@@ -66,17 +112,7 @@ window_list_cleanup(void)
   while(window != NULL)
     {
       window_next = window->next;
-
-      /* Destroy the damage object if any */
-      if(window->damage != XCB_NONE)
-	xcb_damage_destroy(globalconf.connection, window->damage);
-
-      window_free_pixmap(window);
-
-      free(window->attributes);
-      free(window->geometry);
-      free(window);
-
+      window_list_free_window(window);
       window = window_next;
     }
 }
@@ -191,7 +227,7 @@ window_new_root_background_pixmap(void)
   return root_pixmap;
 }
 
-static void
+void
 window_map(window_t *window)
 {
   debug("Mapping window %jx", (uintmax_t) window->id);

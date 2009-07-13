@@ -46,6 +46,7 @@ typedef struct _conf_t
 
   xcb_render_query_pict_formats_reply_t *pict_formats;
   xcb_render_picture_t root_picture;
+  xcb_render_picture_t root_background_picture;
   xcb_render_pictvisual_t *root_pictvisual;
 } conf_t;
 
