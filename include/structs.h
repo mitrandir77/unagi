@@ -42,9 +42,11 @@ typedef struct _conf_t
   xcb_window_t cm_window;
   window_t *windows;
   window_t *_windows_tail;
+  xcb_xfixes_region_t damaged_region;
 
+  xcb_render_query_pict_formats_reply_t *pict_formats;
   xcb_render_picture_t root_picture;
-  xcb_render_pictvisual_t root_pictvisual;
+  xcb_render_pictvisual_t *root_pictvisual;
 } conf_t;
 
 extern conf_t globalconf;

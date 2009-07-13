@@ -22,6 +22,7 @@
 #include <assert.h>
 
 #include <xcb/xcb_atom.h>
+#include <xcb/composite.h>
 
 #include "window.h"
 #include "structs.h"
@@ -46,6 +47,16 @@ window_list_add(const xcb_window_t new_window_id)
   return new_window;
 }
 
+static inline void
+window_free_pixmap(window_t *window)
+{
+  if(window->pixmap)
+    {
+      xcb_free_pixmap(globalconf.connection, window->pixmap);
+      window->pixmap = XCB_NONE;
+    }
+}
+
 void
 window_list_cleanup(void)
 {
@@ -59,26 +70,29 @@ window_list_cleanup(void)
       /* Destroy the damage object if any */
       if(window->damage != XCB_NONE)
 	xcb_damage_destroy(globalconf.connection, window->damage);
-      
+
+      window_free_pixmap(window);
+
       free(window->attributes);
+      free(window->geometry);
       free(window);
 
       window = window_next;
     }
 }
 
-/* static window_t * */
-/* window_list_get(const xcb_window_t window_id) */
-/* { */
-/*   window_t *window; */
+window_t *
+window_list_get(const xcb_window_t window_id)
+{
+  window_t *window;
 
-/*   for(window = globalconf.windows; */
-/*       window != NULL && window->id != window_id; */
-/*       window = window->next) */
-/*     ; */
+  for(window = globalconf.windows;
+      window != NULL && window->id != window_id;
+      window = window->next)
+    ;
 
-/*   return window; */
-/* } */
+  return window;
+}
 
 static xcb_get_property_cookie_t
 window_get_opacity_property(xcb_window_t window_id)
@@ -134,7 +148,7 @@ window_get_root_background_pixmap(void)
 xcb_pixmap_t
 window_get_root_background_pixmap_finalise(void)
 {
-  xcb_pixmap_t root_background_pixmap = 0;
+  xcb_pixmap_t root_background_pixmap = XCB_NONE;
   xcb_get_property_reply_t *root_property_reply;
 
   for(uint8_t background_property_n = 0;
@@ -166,19 +180,44 @@ window_get_root_background_pixmap_finalise(void)
   return root_background_pixmap;
 }
 
+xcb_pixmap_t
+window_new_root_background_pixmap(void)
+{
+  xcb_pixmap_t root_pixmap = xcb_generate_id(globalconf.connection);
+
+  xcb_create_pixmap(globalconf.connection, globalconf.screen->root_depth,
+		    root_pixmap, globalconf.screen->root, 1, 1);
+
+  return root_pixmap;
+}
+
 static void
-window_map(const window_t *window)
+window_map(window_t *window)
 {
   debug("Mapping window %jx", (uintmax_t) window->id);
+
+  /* Free existing window pixmap if any */
+  window_free_pixmap(window);
+
+  /* Update the pixmap thanks to CompositeNameWindowPixmap */
+  window->pixmap = xcb_generate_id(globalconf.connection);
+
+  xcb_composite_name_window_pixmap(globalconf.connection,
+				   window->id,
+				   window->pixmap);				   
 }
 
 static void
 window_add_xrequests(const xcb_window_t window_id,
 		     xcb_get_window_attributes_cookie_t *attributes_cookie,
+		     xcb_get_geometry_cookie_t *geometry_cookie,
 		     xcb_get_property_cookie_t *opacity_cookie)
 {
   *attributes_cookie = xcb_get_window_attributes_unchecked(globalconf.connection,
 							   window_id);
+
+  *geometry_cookie = xcb_get_geometry_unchecked(globalconf.connection,
+						window_id);
 
   *opacity_cookie = window_get_opacity_property(window_id);
 }
@@ -186,6 +225,7 @@ window_add_xrequests(const xcb_window_t window_id,
 static void
 window_add_xrequests_finalise(window_t * const window,
 			      const xcb_get_window_attributes_cookie_t attributes_cookie,
+			      const xcb_get_geometry_cookie_t geometry_cookie,
 			      const xcb_get_property_cookie_t opacity_cookie)
 {
   window->attributes = xcb_get_window_attributes_reply(globalconf.connection,
@@ -202,6 +242,10 @@ window_add_xrequests_finalise(window_t * const window,
 			XCB_DAMAGE_REPORT_LEVEL_NON_EMPTY);
     }
 
+  window->geometry = xcb_get_geometry_reply(globalconf.connection,
+					    geometry_cookie,
+					    NULL);
+
   window->opacity = window_get_opacity_property_reply(opacity_cookie);
 
   if(window->attributes->map_state == XCB_MAP_STATE_VIEWABLE)
@@ -213,11 +257,13 @@ window_add_all(const int nwindows,
 	       const xcb_window_t * const new_windows_id)
 {
   xcb_get_window_attributes_cookie_t attributes_cookies[nwindows];
+  xcb_get_geometry_cookie_t geometry_cookies[nwindows];
   xcb_get_property_cookie_t opacity_cookies[nwindows];
 
   for(int nwindow = 0; nwindow < nwindows; ++nwindow)
     window_add_xrequests(new_windows_id[nwindow],
 			 &attributes_cookies[nwindow],
+			 &geometry_cookies[nwindow],
 			 &opacity_cookies[nwindow]);
 
   window_t *new_windows[nwindows];
@@ -227,6 +273,7 @@ window_add_all(const int nwindows,
   for(int nwindow = 0; nwindow < nwindows; ++nwindow)
     window_add_xrequests_finalise(new_windows[nwindow],
 				  attributes_cookies[nwindow],
+				  geometry_cookies[nwindow],
 				  opacity_cookies[nwindow]);
 }
 
@@ -234,15 +281,18 @@ void
 window_add_one(const xcb_window_t new_window_id)
 {
   xcb_get_window_attributes_cookie_t attributes_cookie;
+  xcb_get_geometry_cookie_t geometry_cookie;
   xcb_get_property_cookie_t opacity_cookie;
 
   window_add_xrequests(new_window_id,
 		       &attributes_cookie,
+		       &geometry_cookie,
 		       &opacity_cookie);
 
   window_t *new_window = window_list_add(new_window_id);
 
   window_add_xrequests_finalise(new_window,
 				attributes_cookie,
+				geometry_cookie,
 				opacity_cookie);
 }

@@ -21,5 +21,6 @@
 
 void window_test_xfixes_regions(void);
 void window_test_init_render(void);
+void experiment_paint_all(xcb_xfixes_region_t);
 
 #endif

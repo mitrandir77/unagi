@@ -88,7 +88,7 @@ main(void)
   sa.sa_flags = 0;
 
   sigaction(SIGHUP, &sa, NULL);
-  sigaction(SIGINT, &sa, NULL);
+/*   sigaction(SIGINT, &sa, NULL); */
   sigaction(SIGTERM, &sa, NULL);
 
   atexit(exit_cleanup);
@@ -161,22 +161,47 @@ main(void)
    * Last initialisation round-trip
    */
 
-  /* Initialise events handlers */
-  event_init_events_handlers();
+  /* Grab the server before performing redirection and get the tree of
+     windows  to ensure  there  won't  be anything  else  at the  same
+     time */
+  xcb_grab_server(globalconf.connection);
 
   /* Now redirect windows and add existing windows */
-  if(!display_init_redirect())
-    return EXIT_FAILURE;
+  display_init_redirect();
 
   /* Validate errors handlers during redirect */
   xcb_aux_sync(globalconf.connection);
   xcb_event_poll_for_event_loop(&globalconf.evenths);
 
-  /* Initialise normal errors handlers */
-  event_init_errors_handlers();
+  /* Manage existing windows */
+  display_init_redirect_finalise();
+
+  xcb_ungrab_server(globalconf.connection);
+
+  /* Initialise normal errors and events handlers */
+  event_init_handlers();
+
+  xcb_generic_event_t *event;
 
   /* Main event and error loop */
-  xcb_event_wait_for_event_loop(&globalconf.evenths);
+  do
+    {
+      /* Flush existing requests before blocking */
+      xcb_flush(globalconf.connection);
+
+      /* Block until an event is received */
+      event = xcb_wait_for_event(globalconf.connection);
+      xcb_event_handle(&globalconf.evenths, event);
+      free(event);
+
+      /* Then process all remaining events in the queue because before
+	 painting, all the DamageNotify have to be received */
+      xcb_event_poll_for_event_loop(&globalconf.evenths);
+
+      /* Now paint the window */
+      render_paint_all();
+    }
+  while(true);
 
   return EXIT_SUCCESS;
 }

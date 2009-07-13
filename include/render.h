@@ -24,6 +24,7 @@
 void render_preinit(void);
 bool render_init(void);
 bool render_init_finalise(void);
+void render_paint_all(void);
 bool render_is_render_request(const uint8_t);
 const char *render_error_get_request_label(const uint16_t);
 const char *render_error_get_error_label(const uint8_t);

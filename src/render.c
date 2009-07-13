@@ -116,6 +116,104 @@ render_init(void)
   return true;
 }
 
+static void
+render_root_background_fill(xcb_render_picture_t dst)
+{
+  const xcb_rectangle_t root_rectangle = {
+	.x = 0, .y = 0, .width = globalconf.screen->width_in_pixels,
+	.height = globalconf.screen->height_in_pixels
+  };
+
+  const xcb_render_color_t root_color = {
+    .red = 0x8080, .green = 0x8080, .blue = 0x8080,
+    .alpha = 0xffff
+  };
+
+  xcb_render_fill_rectangles(globalconf.connection, XCB_RENDER_PICT_OP_SRC,
+			     dst, root_color, 1, &root_rectangle);
+}
+
+static void
+render_init_root_background(void)
+{
+  /* Get the background image pixmap, if any, otherwise do nothing */
+  xcb_pixmap_t root_background_pixmap = window_get_root_background_pixmap_finalise();
+  bool root_background_fill = false;
+
+  if(!root_background_pixmap)
+    {
+      debug("No background pixmap set, set default background color");
+      root_background_pixmap = window_new_root_background_pixmap();
+      root_background_fill = true;
+    }
+
+  uint32_t root_buffer = xcb_generate_id(globalconf.connection);
+  const uint32_t root_buffer_val = true;
+
+  /* Create a new picture holding the background pixmap */
+  xcb_render_create_picture(globalconf.connection,
+			    root_buffer,
+			    root_background_pixmap,
+			    globalconf.root_pictvisual->format,
+			    XCB_RENDER_CP_REPEAT, &root_buffer_val);
+
+  if(root_background_fill)
+    {
+      xcb_free_pixmap(globalconf.connection, root_background_pixmap);
+      render_root_background_fill(root_buffer);
+    }
+     
+  /* Render the new picture with the root Picture */
+  xcb_render_composite(globalconf.connection, XCB_RENDER_PICT_OP_SRC,
+		       root_buffer, XCB_NONE, globalconf.root_picture,
+		       0, 0, 0, 0, 0, 0,
+		       globalconf.screen->width_in_pixels,
+		       globalconf.screen->height_in_pixels);
+
+  xcb_render_free_picture(globalconf.connection, root_buffer);
+}
+
+static bool
+render_init_root_picture(void)
+{
+  /* Now  create the  root window  picture used  when  compositing but
+     before get the screen visuals... */
+
+  assert(_render_pict_formats_cookie.sequence);
+
+  /* The  "PictFormat" object  holds information  needed  to translate
+     pixel values into red, green, blue and alpha channels */
+  globalconf.pict_formats =
+    xcb_render_query_pict_formats_reply(globalconf.connection,
+					_render_pict_formats_cookie,
+					NULL);
+
+  if(!globalconf.pict_formats ||
+     !xcb_render_query_pict_formats_formats_length(globalconf.pict_formats) ||
+     !(globalconf.root_pictvisual = xcb_render_util_find_visual_format(globalconf.pict_formats,
+								       globalconf.screen->root_visual)))
+    {
+      free(globalconf.pict_formats);
+
+      fatal("Can't get PictFormat of root window");
+      return false;
+    }
+
+  globalconf.root_picture = xcb_generate_id(globalconf.connection);
+  const uint32_t root_picture_val = XCB_SUBWINDOW_MODE_INCLUDE_INFERIORS;
+
+  xcb_render_create_picture(globalconf.connection,
+			    globalconf.root_picture,
+			    globalconf.screen->root,
+			    globalconf.root_pictvisual->format,
+			    XCB_RENDER_CP_SUBWINDOW_MODE,
+			    &root_picture_val);
+
+  render_init_root_background();
+
+  return true;
+}
+
 bool
 render_init_finalise(void)
 {
@@ -137,51 +235,38 @@ render_init_finalise(void)
 
   free(render_version_reply);
 
-  /* Now  create the  root window  picture used  when  compositing but
-     before get the screen visuals... */
+  return render_init_root_picture();
+}
 
-  assert(_render_pict_formats_cookie.sequence);
-
-  /* The  "PictFormat" object  holds information  needed  to translate
-     pixel values into red, green, blue and alpha channels */
-  xcb_render_query_pict_formats_reply_t *render_pict_formats_reply =
-    xcb_render_query_pict_formats_reply(globalconf.connection,
-					_render_pict_formats_cookie,
-					NULL);
-
-  const xcb_render_pictvisual_t *screen_pictvisual;
-
-  if(!render_pict_formats_reply ||
-     !xcb_render_query_pict_formats_formats_length(render_pict_formats_reply) ||
-     !(screen_pictvisual = xcb_render_util_find_visual_format(render_pict_formats_reply,
-							      globalconf.screen->root_visual)))
+void
+render_paint_all(void)
+{
+  for(window_t *window = globalconf.windows; window; window = window->next)
     {
-      free(render_pict_formats_reply);
+      debug("Painting window %jx", (uintmax_t) window->id);
+      
+      xcb_render_picture_t picture = xcb_generate_id(globalconf.connection);
+      const uint32_t repeat = XCB_SUBWINDOW_MODE_INCLUDE_INFERIORS;
 
-      fatal("Can't get PictFormat of root window");
-      return false;
+      xcb_render_pictvisual_t *window_pictvisual =
+	xcb_render_util_find_visual_format(globalconf.pict_formats,
+					   window->attributes->visual);
+
+      xcb_render_create_picture(globalconf.connection,
+				picture, window->pixmap,
+				window_pictvisual->format,
+				XCB_RENDER_CP_SUBWINDOW_MODE,
+				&repeat);
+
+      xcb_render_composite(globalconf.connection,
+			   XCB_RENDER_PICT_OP_SRC,
+			   picture, XCB_NONE, globalconf.root_picture,
+			   0, 0, 0, 0,
+			   window->geometry->x,
+			   window->geometry->y,
+			   (uint16_t) (window->geometry->width + window->geometry->border_width * 2),
+			   (uint16_t) (window->geometry->height + window->geometry->border_width * 2));
     }
-
-  memcpy(&globalconf.root_pictvisual, screen_pictvisual, sizeof(xcb_render_pictvisual_t));
-  free(render_pict_formats_reply);
-
-  /* Get the background image pixmap, if any, otherwise do nothing */
-  const xcb_pixmap_t root_background_pixmap = window_get_root_background_pixmap_finalise();
-
-  globalconf.root_picture = xcb_generate_id(globalconf.connection);
-  const uint32_t create_picture_val[] = {
-    true,
-    XCB_SUBWINDOW_MODE_INCLUDE_INFERIORS
-  };
-
-  xcb_render_create_picture(globalconf.connection,
-			    globalconf.root_picture,
-			    (root_background_pixmap ? root_background_pixmap : globalconf.screen->root),
-			    globalconf.root_pictvisual.format,
-			    XCB_RENDER_CP_REPEAT | XCB_RENDER_CP_SUBWINDOW_MODE,
-			    create_picture_val);
-
-  return true;
 }
 
 bool
@@ -213,5 +298,6 @@ render_error_get_error_label(const uint8_t error_code)
 void
 render_cleanup(void)
 {
+  free(globalconf.pict_formats);
   xcb_render_free_picture(globalconf.connection, globalconf.root_picture);
 }

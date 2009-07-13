@@ -20,6 +20,7 @@
 #include <stdlib.h>
 
 #include <xcb/xcb.h>
+#include <xcb/shape.h>
 #include <xcb/composite.h>
 #include <xcb/xcb_event.h>
 
@@ -214,6 +215,29 @@ event_handle_damage_notify(void *data __attribute__((unused)),
 	(intmax_t) event->area.x, (intmax_t) event->area.y,
 	(uintmax_t) event->drawable);
 
+  window_t *window = window_list_get(event->drawable);
+
+  /* Get the window region and add it to the damaged region */
+  xcb_xfixes_region_t parts = xcb_generate_id(globalconf.connection);
+
+  /* TODO: repair_win() */
+  xcb_xfixes_create_region_from_window(globalconf.connection, parts,
+				       window->id, XCB_SHAPE_SK_BOUNDING);
+
+  /* add_damage() */
+  if(globalconf.damaged_region)
+    {
+      xcb_xfixes_union_region(globalconf.connection,
+			      globalconf.damaged_region, parts,
+			      globalconf.damaged_region);
+
+      xcb_xfixes_destroy_region(globalconf.connection, parts);
+    }
+  else
+    globalconf.damaged_region = parts;
+
+  window->damaged = true;
+
   return 0;
 }
 
@@ -317,8 +341,10 @@ event_handle_property_notify(void *data __attribute__((unused)),
 }
 
 void
-event_init_events_handlers(void)
+event_init_handlers(void)
 {
+  INIT_ERRORS_HANDLERS(event_handle_error)
+
   xcb_event_set_handler(&globalconf.evenths,
 			globalconf.extensions.damage->first_event + XCB_DAMAGE_NOTIFY,
 			(xcb_generic_event_handler_t) event_handle_damage_notify,
@@ -349,10 +375,4 @@ event_init_events_handlers(void)
 
   xcb_event_set_property_notify_handler(&globalconf.evenths,
 					event_handle_property_notify, NULL);
-}
-
-void
-event_init_errors_handlers(void)
-{
-  INIT_ERRORS_HANDLERS(event_handle_error)
 }

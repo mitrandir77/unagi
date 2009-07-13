@@ -34,12 +34,13 @@
 #include "window.h"
 #include "util.h"
 
-/* TODO: global variable? */
+/* TODO: global variables? */
 static xcb_xfixes_query_version_cookie_t _xfixes_version_cookie = { 0 };
 static xcb_damage_query_version_cookie_t _damage_version_cookie = { 0 };
 static xcb_composite_query_version_cookie_t _composite_version_cookie = { 0 };
 
 static xcb_get_selection_owner_cookie_t _get_wm_cm_owner_cookie = { 0 };
+static xcb_query_tree_cookie_t _query_tree_cookie = { 0 };
 
 bool
 display_init_extensions(void)
@@ -213,14 +214,12 @@ display_register_cm_finalise(void)
 	  wm_cm_owner_win == globalconf.cm_window);
 }
 
-bool
+void
 display_init_redirect(void)
 {
-  xcb_grab_server(globalconf.connection);
-
   /* Manage all children windows from the root window */
-  xcb_query_tree_cookie_t query_tree_cookie =
-    xcb_query_tree_unchecked(globalconf.connection, globalconf.screen->root);
+  _query_tree_cookie = xcb_query_tree_unchecked(globalconf.connection,
+						globalconf.screen->root);
 
   xcb_composite_redirect_subwindows(globalconf.connection,
 				    globalconf.screen->root,
@@ -235,20 +234,23 @@ display_init_redirect(void)
 
   xcb_change_window_attributes(globalconf.connection, globalconf.screen->root,
 			       XCB_CW_EVENT_MASK, &select_input_val);
+}
+
+void
+display_init_redirect_finalise(void)
+{
+  assert(_query_tree_cookie.sequence);
 
   /* Get all the windows below the root window */
   xcb_query_tree_reply_t *query_tree_reply =
     xcb_query_tree_reply(globalconf.connection,
-			 query_tree_cookie,
+			 _query_tree_cookie,
 			 NULL);
 
   /* Ignore the CM window which is the topmost one */
   window_add_all(xcb_query_tree_children_length(query_tree_reply) - 1,
 		 xcb_query_tree_children(query_tree_reply));
 
-  xcb_ungrab_server(globalconf.connection);  
-
   free(query_tree_reply);
-
-  return true;
 }
+

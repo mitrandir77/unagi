@@ -34,6 +34,7 @@ bool display_register_cm_finalise(void);
 void display_init_atoms(void);
 bool display_init_atoms_finalise(void);
 
-bool display_init_redirect(void);
+void display_init_redirect(void);
+void display_init_redirect_finalise(void);
 
 #endif

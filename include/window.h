@@ -20,6 +20,7 @@
 #define WINDOW_H
 
 #include <stdint.h>
+#include <stdbool.h>
 #include <limits.h>
 
 #include <xcb/xcb.h>
@@ -30,7 +31,12 @@ typedef struct _window_t
   xcb_window_t id;
   uint32_t opacity;
   xcb_get_window_attributes_reply_t *attributes;
+  xcb_get_geometry_reply_t *geometry;
   xcb_damage_damage_t damage;
+  bool damaged;
+  xcb_pixmap_t pixmap;
+
+  xcb_render_picture_t picture;
 
   struct _window_t *next;
 } window_t;
@@ -38,8 +44,10 @@ typedef struct _window_t
 #define OPACITY_OPAQUE UINT_MAX
 
 void window_list_cleanup(void);
+window_t *window_list_get(const xcb_window_t window_id);
 void window_get_root_background_pixmap(void);
 xcb_pixmap_t window_get_root_background_pixmap_finalise(void);
+xcb_pixmap_t window_new_root_background_pixmap(void);
 void window_add_all(const int nwindows, const xcb_window_t *);
 void window_add_one(const xcb_window_t);
 

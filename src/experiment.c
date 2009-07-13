@@ -28,6 +28,7 @@
 #include <xcb/render.h>
 #include <xcb/xcb_renderutil.h>
 #include <xcb/xcb_aux.h>
+#include <xcb/composite.h>
 
 #include "structs.h"
 #include "util.h"
@@ -215,5 +216,189 @@ window_test_init_render(void)
   /* END */
 
   free(render_pict_formats_reply);
+#endif
+}
+
+void
+experiment_paint_all(xcb_xfixes_region_t region __attribute__((unused)))
+{
+#if 0
+  if(!region)
+    {
+      xcb_rectangle_t r = {
+	.x = 0, .y = 0, .width = globalconf.screen->width_in_pixels,
+	.height = globalconf.screen->height_in_pixels 
+      };
+
+      region = xcb_generate_id(globalconf.connection);
+
+      xcb_xfixes_create_region(globalconf.connection, region, 1, &r);
+    }
+
+  xcb_xfixes_set_picture_clip_region(globalconf.connection,
+				     globalconf.root_picture,
+				     region, 0, 0);
+
+  for(window_t *window = globalconf.windows; window; window = window->next)
+    {
+      if(!window->damaged)
+	continue;
+
+      if(!window->picture)
+	{
+	  window->pixmap = xcb_generate_id(globalconf.connection);
+
+	  debug("%d, %d, %d, %d", window->geometry->x, window->geometry->y,
+		window->geometry->width, window->geometry->border_width);
+
+	  xcb_composite_name_window_pixmap(globalconf.connection,
+					   window->id, window->pixmap);
+
+	  xcb_render_pictvisual_t *window_pictvisual =
+	    xcb_render_util_find_visual_format(globalconf.pict_formats,
+					       window->attributes->visual);
+
+	  const uint32_t create_picture_val = XCB_SUBWINDOW_MODE_INCLUDE_INFERIORS;
+	  window->picture = xcb_generate_id(globalconf.connection);
+
+	  xcb_render_create_picture(globalconf.connection,
+				    window->picture,
+				    window->pixmap,
+				    window_pictvisual->format,
+				    XCB_RENDER_CP_SUBWINDOW_MODE,
+				    &create_picture_val);	  
+	}
+
+      /* border_size */
+      if(!window->border_size)
+	{
+	  window->border_size = xcb_generate_id(globalconf.connection);
+
+	  xcb_xfixes_create_region_from_window(globalconf.connection,
+					       window->border_size,
+					       window->id,
+					       XCB_SHAPE_SK_BOUNDING);
+
+	  xcb_xfixes_translate_region(globalconf.connection,
+				      window->border_size,
+				      (int16_t) (window->geometry->x + window->geometry->border_width),
+				      (int16_t) (window->geometry->y + window->geometry->border_width));
+	}
+
+      /* win_extents */
+      if(!window->extents)
+	{
+	  window->extents = xcb_generate_id(globalconf.connection);
+
+	  xcb_rectangle_t r = {
+	    .x = window->geometry->x, .y = window->geometry->y,
+	    .width = (uint16_t) (window->geometry->width + window->geometry->border_width * 2),
+	    .height = (uint16_t) (window->geometry->height + window->geometry->border_width * 2)
+	  };
+
+	  xcb_xfixes_create_region(globalconf.connection, window->extents, 1, &r);
+	}
+
+      if(!window->border_clip)
+	{
+	  window->border_clip = xcb_generate_id(globalconf.connection);
+
+	  xcb_xfixes_create_region(globalconf.connection, window->border_clip, 0, NULL);
+	  xcb_xfixes_copy_region(globalconf.connection, region, window->border_clip);
+	}
+    }
+
+  xcb_xfixes_set_picture_clip_region(globalconf.connection, globalconf.root_picture,
+				     region, 0, 0);
+
+  /* paint_root */
+  if(!root_tile)
+    {
+      /* paint_root() */
+      root_tile = xcb_generate_id(globalconf.connection);
+      
+      window_get_root_background_pixmap();
+      xcb_pixmap_t pixmap = window_get_root_background_pixmap_finalise();
+
+      const uint32_t create_picture_val = true;
+
+      xcb_render_create_picture(globalconf.connection,
+				root_tile, pixmap,
+				globalconf.root_pictvisual->format,
+				XCB_RENDER_CP_REPEAT,
+				&create_picture_val);
+    }
+
+  xcb_render_composite(globalconf.connection, XCB_RENDER_PICT_OP_SRC,
+		       root_tile, XCB_NONE, globalconf.root_picture,
+		       0, 0, 0, 0, 0, 0, globalconf.screen->width_in_pixels,
+		       globalconf.screen->height_in_pixels);		       
+
+  /* end of paint_root */
+
+  for(window_t *window = globalconf.windows; window; window = window->next)
+    {
+      if(!window->damaged)
+	continue;
+
+      xcb_xfixes_set_picture_clip_region(globalconf.connection,
+					 globalconf.root_picture,
+					 window->border_clip,
+					 0, 0);
+
+      xcb_render_picture_t alpha_picture = xcb_generate_id(globalconf.connection);
+
+      /* solid_picture */
+      {
+	xcb_pixmap_t pixmap = xcb_generate_id(globalconf.connection);
+
+	xcb_create_pixmap(globalconf.connection, 8, pixmap,
+			  globalconf.screen->root, 1, 1);
+
+	xcb_render_pictforminfo_t *standard_format =
+	  xcb_render_util_find_standard_format(globalconf.pict_formats,
+					       XCB_PICT_STANDARD_A_8);
+
+	const uint32_t create_picture_val = true;
+
+	xcb_render_create_picture(globalconf.connection,
+				  alpha_picture,
+				  pixmap,
+				  standard_format->id,
+				  XCB_RENDER_CP_REPEAT,
+				  &create_picture_val);
+
+	xcb_render_color_t color;
+	color.alpha = (uint16_t) ((window->opacity / OPACITY_OPAQUE) * 0xffff);
+	color.red = color.green = color.blue = 0;
+
+	xcb_rectangle_t rect = { .x = 0, .y = 0, .width = 1, .height = 1 };
+
+	xcb_render_fill_rectangles(globalconf.connection, XCB_RENDER_PICT_OP_SRC,
+				   alpha_picture, color, 1, &rect);
+
+	xcb_free_pixmap(globalconf.connection, pixmap);
+      }
+
+      xcb_render_composite(globalconf.connection, XCB_RENDER_PICT_OP_OVER,
+			   window->picture, alpha_picture, globalconf.root_picture,
+			   0, 0, 0, 0,
+			   window->geometry->x, window->geometry->y,
+			   (uint16_t) (window->geometry->width + window->geometry->border_width * 2),
+			   (uint16_t) (window->geometry->height + window->geometry->border_width * 2));
+
+      xcb_xfixes_destroy_region(globalconf.connection, window->border_clip);
+      window->border_clip = XCB_NONE;
+    }
+
+  xcb_xfixes_destroy_region(globalconf.connection, region);
+
+  xcb_xfixes_set_picture_clip_region(globalconf.connection, globalconf.root_picture, XCB_NONE, 0, 0);
+
+  xcb_render_composite(globalconf.connection, XCB_RENDER_PICT_OP_SRC,
+		       globalconf.root_picture, XCB_NONE, globalconf.root_picture,
+		       0, 0, 0, 0, 0, 0, globalconf.screen->width_in_pixels,
+		       globalconf.screen->height_in_pixels);
+
 #endif
 }

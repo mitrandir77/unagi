@@ -22,7 +22,6 @@
 #include "display.h"
 
 void event_init_start_handlers(void);
-void event_init_events_handlers(void);
-void event_init_errors_handlers(void);
+void event_init_handlers(void);
 
 #endif
