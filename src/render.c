@@ -144,7 +144,7 @@ render_paint_root_background(void)
 		       globalconf.screen->height_in_pixels);
 }
 
-static void
+void
 render_init_root_background(void)
 {
   /* Get the background image pixmap, if any, otherwise do nothing */
@@ -173,8 +173,6 @@ render_init_root_background(void)
       xcb_free_pixmap(globalconf.connection, root_background_pixmap);
       render_root_background_fill(globalconf.root_background_picture);
     }
-
-  render_paint_root_background();
 }
 
 static bool
@@ -213,7 +211,10 @@ render_init_root_picture(void)
 			    XCB_RENDER_CP_SUBWINDOW_MODE,
 			    &root_picture_val);
 
+  /* Initialise the root  background Picture and paint it  to the root
+     Picture */
   render_init_root_background();
+  render_paint_root_background();
 
   return true;
 }
@@ -247,10 +248,50 @@ render_paint_all(void)
 {
   render_paint_root_background();
 
+  /* TODO: disable for now */
+#if 0
+  if(globalconf.damaged_region)
+    {
+      xcb_xfixes_fetch_region_reply_t *region_reply =
+	xcb_xfixes_fetch_region_reply(globalconf.connection,
+				      xcb_xfixes_fetch_region_unchecked(globalconf.connection,
+									globalconf.damaged_region),
+				      NULL);
+
+      if(region_reply)
+	{
+	  xcb_rectangle_t *rectangles = xcb_xfixes_fetch_region_rectangles(region_reply);
+	  
+	  for(int rectn = 0; rectn < xcb_xfixes_fetch_region_rectangles_length(region_reply);
+	      rectn++)
+	    debug("BAARRR: %ux%u +%d +%d", rectangles[rectn].width, rectangles[rectn].height,
+		  rectangles[rectn].x, rectangles[rectn].y);
+
+	  free(region_reply);
+	}
+      else
+	debug("FOOOOOO: No rectangles");
+    }
+
+  xcb_xfixes_set_picture_clip_region(globalconf.connection,
+				     globalconf.root_picture,
+				     globalconf.damaged_region,
+				     0, 0);
+#endif
+
   for(window_t *window = globalconf.windows; window; window = window->next)
     {
       if(!window->damaged)
 	continue;
+
+      if(window->geometry->x + window->geometry->width < 1 ||
+	 window->geometry->y + window->geometry->height < 1 ||
+	 window->geometry->x >= globalconf.screen->width_in_pixels ||
+	 window->geometry->y >= globalconf.screen->height_in_pixels)
+	{
+	  debug("Ignoring window %jx", (uintmax_t) window->id);
+	  continue;
+	}
 
       debug("Painting window %jx", (uintmax_t) window->id);
 
@@ -260,6 +301,10 @@ render_paint_all(void)
 
 	  window->picture = xcb_generate_id(globalconf.connection);
 	  const uint32_t create_picture_val = XCB_SUBWINDOW_MODE_INCLUDE_INFERIORS;
+
+	  /* Free existing window pixmap if any */
+	  window_free_pixmap(window);
+	  window->pixmap = window_get_pixmap(window);
 
 	  xcb_render_pictvisual_t *window_pictvisual =
 	    xcb_render_util_find_visual_format(globalconf.pict_formats,
@@ -281,6 +326,15 @@ render_paint_all(void)
 			   (uint16_t) (window->geometry->width + window->geometry->border_width * 2),
 			   (uint16_t) (window->geometry->height + window->geometry->border_width * 2));
     }
+
+  /* TODO: disable for now */
+#if 0
+  if(globalconf.damaged_region)
+    {
+      xcb_xfixes_destroy_region(globalconf.connection, globalconf.damaged_region);
+      globalconf.damaged_region = XCB_NONE;
+    }
+#endif
 }
 
 bool
@@ -308,11 +362,21 @@ render_error_get_error_label(const uint8_t error_code)
   return render_error_label[render_error];
 }
 
+void
+render_free_picture(xcb_render_picture_t *picture)
+{
+  if(*picture)
+    {
+      xcb_render_free_picture(globalconf.connection, *picture);
+      *picture = XCB_NONE;
+    }
+}
+
 /* Free all resources allocated by the render backend */
 void
 render_cleanup(void)
 {
   free(globalconf.pict_formats);
-  xcb_render_free_picture(globalconf.connection, globalconf.root_picture);
-  xcb_render_free_picture(globalconf.connection, globalconf.root_background_picture);
+  render_free_picture(&globalconf.root_background_picture);
+  render_free_picture(&globalconf.root_picture);
 }

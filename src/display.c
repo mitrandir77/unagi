@@ -248,7 +248,7 @@ display_init_redirect_finalise(void)
 			 NULL);
 
   /* Ignore the CM window which is the topmost one */
-  window_add_all(xcb_query_tree_children_length(query_tree_reply) - 1,
+  window_add_all(xcb_query_tree_children_length(query_tree_reply),
 		 xcb_query_tree_children(query_tree_reply));
 
   free(query_tree_reply);

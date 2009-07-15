@@ -50,8 +50,9 @@ void window_list_remove_window(window_t *);
 void window_get_root_background_pixmap(void);
 xcb_pixmap_t window_get_root_background_pixmap_finalise(void);
 xcb_pixmap_t window_new_root_background_pixmap(void);
-void window_map(window_t *);
+xcb_pixmap_t window_get_pixmap(window_t *);
 void window_add_all(const int nwindows, const xcb_window_t *);
-void window_add_one(const xcb_window_t);
+window_t *window_add_one(const xcb_window_t);
+void window_restack(window_t *, xcb_window_t);
 
 #endif

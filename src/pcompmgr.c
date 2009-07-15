@@ -75,7 +75,7 @@ main(void)
 
   globalconf.connection = xcb_connect(NULL, &globalconf.screen_nbr);
   if(xcb_connection_has_error(globalconf.connection))
-    error(EXIT_FAILURE, 0, "Cannot open display");
+    fatal("Cannot open display");
 
   /* Get the root window */
   globalconf.screen = xcb_aux_get_screen(globalconf.connection,
@@ -88,7 +88,7 @@ main(void)
   sa.sa_flags = 0;
 
   sigaction(SIGHUP, &sa, NULL);
-/*   sigaction(SIGINT, &sa, NULL); */
+  sigaction(SIGINT, &sa, NULL);
   sigaction(SIGTERM, &sa, NULL);
 
   atexit(exit_cleanup);
@@ -114,7 +114,7 @@ main(void)
 
   /* Get replies for EWMH atoms initialisation */
   if(!atoms_init_finalise())
-    error(EXIT_FAILURE, 0, "Cannot initialise atoms");
+    fatal("Cannot initialise atoms");
 
   /* First check whether there is already a Compositing Manager (ICCCM) */
   xcb_get_selection_owner_cookie_t wm_cm_owner_cookie =
@@ -134,7 +134,7 @@ main(void)
   if(!xcb_ewmh_get_wm_cm_owner_reply(globalconf.connection, wm_cm_owner_cookie,
 				     &wm_cm_owner_win, NULL) ||
      wm_cm_owner_win != XCB_NONE)
-    error(EXIT_FAILURE, 0, "A compositing manager is already active");
+    fatal("A compositing manager is already active");
 
   /* Now send requests to register the CM */
   display_register_cm();
@@ -155,7 +155,7 @@ main(void)
 
   /* Finish CM X registration */
   if(!display_register_cm_finalise())
-    error(EXIT_FAILURE, 0, "Could not acquire _NET_WM_CM_Sn ownership");
+    fatal("Could not acquire _NET_WM_CM_Sn ownership");
 
   /**
    * Last initialisation round-trip
@@ -191,6 +191,11 @@ main(void)
 
       /* Block until an event is received */
       event = xcb_wait_for_event(globalconf.connection);
+
+      /* Check X connection to avoid SIGSERV */
+      if(xcb_connection_has_error(globalconf.connection))
+	 fatal("X connection invalid");
+
       xcb_event_handle(&globalconf.evenths, event);
       free(event);
 

@@ -222,14 +222,49 @@ event_handle_damage_notify(void *data __attribute__((unused)),
 
   window_t *window = window_list_get(event->drawable);
 
+  /* Subtract  the  current window  Damage  (e.g.  set  it as  empty),
+     otherwise  this window  would  not received  DamageNotify as  the
+     window area is now non-empty */
+  xcb_damage_subtract(globalconf.connection, window->damage,
+		      XCB_NONE, XCB_NONE);
+
+  /* TODO: disable for now */
+#if 0
   /* Get the window region and add it to the damaged region */
   xcb_xfixes_region_t parts = xcb_generate_id(globalconf.connection);
 
-  /* TODO: repair_win() */
-  xcb_xfixes_create_region_from_window(globalconf.connection, parts,
-				       window->id, XCB_SHAPE_SK_BOUNDING);
+  if(!window->damaged)
+    {
+      const xcb_rectangle_t r = {
+	.x = window->geometry->x, .y = window->geometry->y,
+	.width = (uint16_t) (window->geometry->width + window->geometry->border_width * 2),
+	.height = (uint16_t) (window->geometry->height + window->geometry->border_width * 2)
+      };
 
-  /* add_damage() */
+      xcb_xfixes_create_region(globalconf.connection, parts, 1, &r);
+
+      xcb_xfixes_create_region_from_window(globalconf.connection, parts, window->id,
+					   XCB_SHAPE_SK_CLIP);
+
+      /* Subtract the  current window Damage  (e.g. set it  as empty),
+	 otherwise this window would  not received DamageNotify as the
+	 window area is now non-empty */
+      xcb_damage_subtract(globalconf.connection, window->damage, XCB_NONE,
+			  XCB_NONE);
+    }
+  else
+    {
+      xcb_xfixes_create_region(globalconf.connection, parts, 0, NULL);
+
+      xcb_damage_subtract(globalconf.connection, window->damage, XCB_NONE,
+			  parts);
+
+      xcb_xfixes_translate_region(globalconf.connection, parts,
+				  (int16_t) (window->geometry->x + window->geometry->border_width),
+				  (int16_t) (window->geometry->y + window->geometry->border_width));
+
+    }
+
   if(globalconf.damaged_region)
     {
       xcb_xfixes_union_region(globalconf.connection,
@@ -239,8 +274,9 @@ event_handle_damage_notify(void *data __attribute__((unused)),
       xcb_xfixes_destroy_region(globalconf.connection, parts);
     }
   else
-    globalconf.damaged_region = parts;
 
+    globalconf.damaged_region = parts;
+#endif
   window->damaged = true;
 
   return 0;
@@ -254,6 +290,21 @@ event_handle_circulate_notify(void *data __attribute__((unused)),
   debug("CirculateNotify: event=%jx, window=%jx",
 	(uintmax_t) event->event, (uintmax_t) event->window);
 
+  window_t *window = window_list_get(event->window);
+
+  if(event->place == XCB_PLACE_ON_BOTTOM)
+    window_restack(window, XCB_NONE);
+  else
+    {
+      window_t *windows_tail;
+      for(windows_tail = globalconf.windows;
+	  windows_tail && windows_tail->next;
+	  windows_tail = windows_tail->next)
+	;
+
+      window_restack(window, windows_tail->id);
+    }
+
   return 0;
 }
 
@@ -262,21 +313,72 @@ event_handle_configure_notify(void *data __attribute__((unused)),
 			      xcb_connection_t *c __attribute__((unused)),
 			      xcb_configure_notify_event_t *event)
 {
-  debug("ConfigureNotify: event=%jx, window=%jx",
-	(uintmax_t) event->event, (uintmax_t) event->window);
+  debug("ConfigureNotify: event=%jx, window=%jx (%jux%ju +%jd +%jd)",
+	(uintmax_t) event->event, (uintmax_t) event->window,
+	(uintmax_t) event->width, (uintmax_t) event->height,
+	(intmax_t) event->x, (intmax_t) event->y);
+
+  if(event->window == globalconf.screen->root)
+    {
+      globalconf.screen->width_in_pixels = event->width;
+      globalconf.screen->height_in_pixels = event->height;
+
+      render_free_picture(&globalconf.root_background_picture);
+      render_init_root_background();
+
+      return 0;
+    }
+
+  window_t *window = window_list_get(event->window);
+  if(!window)
+    {
+      debug("No such window %jx", (uintmax_t) event->window);
+      return 0;
+    }
+
+  /* Update geometry */
+  window->geometry->x = event->x;
+  window->geometry->y = event->y;
+
+  /* Invalidate Pixmap and Picture if the window has been resized */
+  if(window->geometry->width != event->width ||
+     window->geometry->height != event->height)
+    {
+      window_free_pixmap(window);
+      render_free_picture(&window->picture);
+    }
+
+  window->geometry->width = event->width;
+  window->geometry->height = event->height;
+  window->geometry->border_width = event->border_width;
+  window->attributes->override_redirect = event->override_redirect;
+
+  /* Restack the window */
+  window_restack(window, event->above_sibling);
 
   return 0;
 }
 
 static int
 event_handle_create_notify(void *data __attribute__((unused)),
-			xcb_connection_t *c __attribute__((unused)),
-			xcb_create_notify_event_t *event)
+			   xcb_connection_t *c __attribute__((unused)),
+			   xcb_create_notify_event_t *event)
 {
-  debug("CreateNotify: parent=%jx, window=%jx",
-	(uintmax_t) event->parent, (uintmax_t) event->window);
+  debug("CreateNotify: parent=%jx, window=%jx (%jux%ju +%jd +%jd)",
+	(uintmax_t) event->parent, (uintmax_t) event->window,
+	(uintmax_t) event->width, (uintmax_t) event->height,
+	(intmax_t) event->x, (intmax_t) event->y);
 
-  window_add_one(event->window);
+  window_t *new_window = window_add_one(event->window);
+
+  /* No need  to do  a GetGeometry request  as the window  geometry is
+     given in the CreateNotify event itself */
+  new_window->geometry = calloc(1, sizeof(xcb_get_geometry_reply_t));
+  new_window->geometry->x = event->x;
+  new_window->geometry->y = event->y;
+  new_window->geometry->width = event->width;
+  new_window->geometry->height = event->height;
+  new_window->geometry->border_width = event->border_width;
 
   return 0;
 }
@@ -304,9 +406,8 @@ event_handle_map_notify(void *data __attribute__((unused)),
 	(uintmax_t) event->event, (uintmax_t) event->window);
 
   window_t *window = window_list_get(event->window);
-
   window->attributes->map_state = XCB_MAP_STATE_VIEWABLE;
-  window_map(window);
+  window->damaged = false;
 
   return 0;
 }
@@ -339,17 +440,8 @@ event_handle_unmap_notify(void *data __attribute__((unused)),
     }
 
   /* TODO */
-  if(window->pixmap)
-    {
-      xcb_free_pixmap(globalconf.connection, window->pixmap);
-      window->pixmap = XCB_NONE;
-    }
-
-  if(window->picture)
-    {
-      xcb_render_free_picture(globalconf.connection, window->picture);
-      window->picture = XCB_NONE;
-    }
+  window_free_pixmap(window);
+  render_free_picture(&window->picture);
 
   window->attributes->map_state = XCB_MAP_STATE_UNMAPPED;
   window->damaged = false;

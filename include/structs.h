@@ -41,8 +41,10 @@ typedef struct _conf_t
   xcb_event_handlers_t evenths;
   xcb_window_t cm_window;
   window_t *windows;
-  window_t *_windows_tail;
+  /* TODO: disable for now */
+#if 0
   xcb_xfixes_region_t damaged_region;
+#endif
 
   xcb_render_query_pict_formats_reply_t *pict_formats;
   xcb_render_picture_t root_picture;

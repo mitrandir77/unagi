@@ -28,20 +28,26 @@
 #include "structs.h"
 #include "atoms.h"
 #include "util.h"
+#include "render.h"
 
 static window_t *
-window_list_add(const xcb_window_t new_window_id)
+window_list_append(const xcb_window_t new_window_id)
 {
   window_t *new_window = calloc(1, sizeof(window_t));
 
   new_window->id = new_window_id;
 
   if(globalconf.windows == NULL)
-    globalconf.windows = globalconf._windows_tail = new_window;
+    globalconf.windows = new_window;
   else
     {
-      globalconf._windows_tail->next = new_window;
-      globalconf._windows_tail = new_window;
+      /* Append to the end of the list */
+      window_t *window_tail;
+      for(window_tail = globalconf.windows; window_tail->next;
+	  window_tail = window_tail->next)
+	;
+
+      window_tail->next = new_window;
     }
 
   return new_window;
@@ -60,13 +66,6 @@ window_free_pixmap(window_t *window)
 static void
 window_list_free_window(window_t *window)
 {
-  window_free_pixmap(window);
-
-  if(window->picture != XCB_NONE)
-    {
-      xcb_render_free_picture(globalconf.connection, window->picture);
-      window->picture = XCB_NONE;
-    }
 
   /* Destroy the damage object if any */
   if(window->damage != XCB_NONE)
@@ -74,6 +73,9 @@ window_list_free_window(window_t *window)
       xcb_damage_destroy(globalconf.connection, window->damage);
       window->damage = XCB_NONE;
     }
+
+  window_free_pixmap(window);
+  render_free_picture(&window->picture);
 
   free(window->attributes);
   free(window->geometry);
@@ -227,33 +229,26 @@ window_new_root_background_pixmap(void)
   return root_pixmap;
 }
 
-void
-window_map(window_t *window)
+xcb_pixmap_t
+window_get_pixmap(window_t *window)
 {
-  debug("Mapping window %jx", (uintmax_t) window->id);
-
-  /* Free existing window pixmap if any */
-  window_free_pixmap(window);
-
   /* Update the pixmap thanks to CompositeNameWindowPixmap */
-  window->pixmap = xcb_generate_id(globalconf.connection);
+  xcb_pixmap_t pixmap = xcb_generate_id(globalconf.connection);
 
   xcb_composite_name_window_pixmap(globalconf.connection,
 				   window->id,
-				   window->pixmap);				   
+				   pixmap);
+
+  return pixmap;
 }
 
 static void
 window_add_xrequests(const xcb_window_t window_id,
 		     xcb_get_window_attributes_cookie_t *attributes_cookie,
-		     xcb_get_geometry_cookie_t *geometry_cookie,
 		     xcb_get_property_cookie_t *opacity_cookie)
 {
   *attributes_cookie = xcb_get_window_attributes_unchecked(globalconf.connection,
 							   window_id);
-
-  *geometry_cookie = xcb_get_geometry_unchecked(globalconf.connection,
-						window_id);
 
   *opacity_cookie = window_get_opacity_property(window_id);
 }
@@ -261,7 +256,6 @@ window_add_xrequests(const xcb_window_t window_id,
 static void
 window_add_xrequests_finalise(window_t * const window,
 			      const xcb_get_window_attributes_cookie_t attributes_cookie,
-			      const xcb_get_geometry_cookie_t geometry_cookie,
 			      const xcb_get_property_cookie_t opacity_cookie)
 {
   window->attributes = xcb_get_window_attributes_reply(globalconf.connection,
@@ -278,14 +272,7 @@ window_add_xrequests_finalise(window_t * const window,
 			XCB_DAMAGE_REPORT_LEVEL_NON_EMPTY);
     }
 
-  window->geometry = xcb_get_geometry_reply(globalconf.connection,
-					    geometry_cookie,
-					    NULL);
-
   window->opacity = window_get_opacity_property_reply(opacity_cookie);
-
-  if(window->attributes->map_state == XCB_MAP_STATE_VIEWABLE)
-    window_map(window);
 }
 
 void
@@ -297,38 +284,105 @@ window_add_all(const int nwindows,
   xcb_get_property_cookie_t opacity_cookies[nwindows];
 
   for(int nwindow = 0; nwindow < nwindows; ++nwindow)
-    window_add_xrequests(new_windows_id[nwindow],
-			 &attributes_cookies[nwindow],
-			 &geometry_cookies[nwindow],
-			 &opacity_cookies[nwindow]);
+    {
+      /* Ignore the CM window */
+      if(new_windows_id[nwindow] == globalconf.cm_window)
+	continue;
+
+      window_add_xrequests(new_windows_id[nwindow],
+			   &attributes_cookies[nwindow],
+			   &opacity_cookies[nwindow]);
+
+      /* Only  necessary  when adding  all  the  windows, otherwise  a
+	 window  is only  added on  CreateNotify event  which actually
+	 contains the window geometry */
+      geometry_cookies[nwindow] =
+	xcb_get_geometry_unchecked(globalconf.connection,
+				   new_windows_id[nwindow]);
+    }
 
   window_t *new_windows[nwindows];
   for(int nwindow = 0; nwindow < nwindows; ++nwindow)
-    new_windows[nwindow] = window_list_add(new_windows_id[nwindow]);
+    new_windows[nwindow] = window_list_append(new_windows_id[nwindow]);
 
   for(int nwindow = 0; nwindow < nwindows; ++nwindow)
-    window_add_xrequests_finalise(new_windows[nwindow],
-				  attributes_cookies[nwindow],
-				  geometry_cookies[nwindow],
-				  opacity_cookies[nwindow]);
+    {
+      /* Ignore the CM window */
+      if(new_windows_id[nwindow] == globalconf.cm_window)
+	continue;
+
+      window_add_xrequests_finalise(new_windows[nwindow],
+				    attributes_cookies[nwindow],
+				    opacity_cookies[nwindow]);
+
+      new_windows[nwindow]->geometry =
+	xcb_get_geometry_reply(globalconf.connection,
+			       geometry_cookies[nwindow],
+			       NULL);
+    }
 }
 
-void
+window_t *
 window_add_one(const xcb_window_t new_window_id)
 {
   xcb_get_window_attributes_cookie_t attributes_cookie;
-  xcb_get_geometry_cookie_t geometry_cookie;
   xcb_get_property_cookie_t opacity_cookie;
 
   window_add_xrequests(new_window_id,
 		       &attributes_cookie,
-		       &geometry_cookie,
 		       &opacity_cookie);
 
-  window_t *new_window = window_list_add(new_window_id);
+  window_t *new_window = window_list_append(new_window_id);
 
   window_add_xrequests_finalise(new_window,
 				attributes_cookie,
-				geometry_cookie,
 				opacity_cookie);
+
+  return new_window;
+}
+
+void
+window_restack(window_t *window, xcb_window_t window_new_above_id)
+{
+  assert(globalconf.windows);
+  assert(window);
+
+  /* Check whether the above window has actually changed */
+  if((window->next && window->next->id == window_new_above_id) ||
+     (!window->next && window_new_above_id == XCB_NONE))
+    return;
+
+  /* Remove the window from the list */
+  if(globalconf.windows == window)
+    globalconf.windows = window->next;
+  else
+    {
+      window_t *old_window_below;
+      for(old_window_below = globalconf.windows;
+	  old_window_below && old_window_below->next != window;
+	  old_window_below = old_window_below->next)
+	;
+
+      old_window_below->next = window->next;
+    }
+
+  /* If the  window is on the bottom  of the stack, then  insert it at
+     the beginning of the windows list */
+  if(window_new_above_id == XCB_NONE)
+    {
+      window->next = globalconf.windows;
+      globalconf.windows = window;
+    }
+  /* Otherwise insert it before the above window */
+  else
+    {
+      window_t *window_below;
+      for(window_below = globalconf.windows;
+	  window_below->next && window_below->id != window_new_above_id;
+	  window_below = window_below->next)
+	;
+
+      window->next = window_below->next;
+      window_below->next = window;
+    }
 }
