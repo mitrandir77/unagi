@@ -15,7 +15,7 @@ AC_PROG_INSTALL
 
 # Checks for libraries
 PKG_CHECK_MODULES(DEPS, [
-	  xcb
+	  xcb >= 1.4
 	  xcb-composite
 	  xcb-xfixes
 	  xcb-damage

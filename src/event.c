@@ -30,9 +30,6 @@
 #include "render.h"
 #include "window.h"
 
-#define ERROR_GET_MAJOR_CODE(e) (XCB_EVENT_REQUEST_TYPE(e))
-#define ERROR_GET_MINOR_CODE(e) (*((uint16_t *) e + 4))
-
 static const char *composite_request_label[] = {
   "CompositeQueryVersion",
   "CompositeRedirectWindow",
@@ -95,14 +92,6 @@ static const char *damage_error_label = "BadDamage";
 #define ERROR_EXTENSION_GET_REQUEST_LABEL(labels, minor_code) \
   (minor_code < countof(labels) ? labels[minor_code] : NULL)
 
-/* static inline const char * */
-/* error_extension_get_request_label(const char *request_label[], */
-/* 				  const uint16_t request_minor_code) */
-/* { */
-/*   return (request_minor_code < countof(request_label) ? */
-/* 	  request_label[request_minor_code] : NULL); */
-/* } */
-
 static const char *
 error_get_request_label(const uint8_t request_major_code,
 			const uint16_t request_minor_code)
@@ -163,12 +152,9 @@ event_handle_error(void *data __attribute__((unused)),
 	error_label = xcb_event_get_error_label(error->error_code);
     }
 
-  const uint8_t major_code = ERROR_GET_MAJOR_CODE(error);
-  const uint16_t minor_code = ERROR_GET_MINOR_CODE(error);
-
   warn("X error: request=%s (major=%ju, minor=%ju), error=%s",
-       error_get_request_label(major_code, minor_code),
-       (uintmax_t) major_code, (uintmax_t) minor_code,
+       error_get_request_label(error->major_code, error->minor_code),
+       (uintmax_t) error->major_code, (uintmax_t) error->minor_code,
        error_label);
 
   return 0;
@@ -180,8 +166,8 @@ event_handle_start_error(void *data,
 			 xcb_connection_t *c,
 			 xcb_generic_error_t *error)
 {
-  if(ERROR_GET_MAJOR_CODE(error) == globalconf.extensions.composite->major_opcode &&
-     ERROR_GET_MINOR_CODE(error) == XCB_COMPOSITE_REDIRECT_SUBWINDOWS)
+  if(error->major_code == globalconf.extensions.composite->major_opcode &&
+     error->minor_code == XCB_COMPOSITE_REDIRECT_SUBWINDOWS)
     {
       free(error);
       fatal("Another compositing manager is already running");

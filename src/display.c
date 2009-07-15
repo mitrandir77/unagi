@@ -35,10 +35,15 @@
 #include "util.h"
 
 /* TODO: global variables? */
-static xcb_xfixes_query_version_cookie_t _xfixes_version_cookie = { 0 };
-static xcb_damage_query_version_cookie_t _damage_version_cookie = { 0 };
-static xcb_composite_query_version_cookie_t _composite_version_cookie = { 0 };
+typedef struct
+{
+  xcb_xfixes_query_version_cookie_t xfixes;
+  xcb_damage_query_version_cookie_t damage;
+  xcb_composite_query_version_cookie_t composite;
+}  init_extensions_cookies_t;
 
+static init_extensions_cookies_t _init_extensions_cookies = { { 0 }, { 0 }, { 0 } };
+  
 static xcb_get_selection_owner_cookie_t _get_wm_cm_owner_cookie = { 0 };
 static xcb_query_tree_cookie_t _query_tree_cookie = { 0 };
 
@@ -84,16 +89,17 @@ display_init_extensions(void)
       return false;
     }
 
-  _composite_version_cookie =
+  _init_extensions_cookies.composite =
     xcb_composite_query_version_unchecked(globalconf.connection,
 					  XCB_COMPOSITE_MAJOR_VERSION,
 					  XCB_COMPOSITE_MINOR_VERSION);
 
-  _damage_version_cookie = xcb_damage_query_version_unchecked(globalconf.connection,
-							      XCB_DAMAGE_MAJOR_VERSION,
-							      XCB_DAMAGE_MINOR_VERSION),
+  _init_extensions_cookies.damage =
+    xcb_damage_query_version_unchecked(globalconf.connection,
+				       XCB_DAMAGE_MAJOR_VERSION,
+				       XCB_DAMAGE_MINOR_VERSION);
 
-  _xfixes_version_cookie =
+  _init_extensions_cookies.xfixes =
     xcb_xfixes_query_version_unchecked(globalconf.connection,
 				       XCB_XFIXES_MAJOR_VERSION,
 				       XCB_XFIXES_MINOR_VERSION);
@@ -104,11 +110,11 @@ display_init_extensions(void)
 bool
 display_init_extensions_finalise(void)
 {
-  assert(_composite_version_cookie.sequence);
+  assert(_init_extensions_cookies.composite.sequence);
 
   xcb_composite_query_version_reply_t *composite_version_reply =
     xcb_composite_query_version_reply(globalconf.connection,
-				      _composite_version_cookie,
+				      _init_extensions_cookies.composite,
 				      NULL);
 
   /* NameWindowPixmap support is needed */
@@ -122,11 +128,11 @@ display_init_extensions_finalise(void)
 
   free(composite_version_reply);
 
-  assert(_damage_version_cookie.sequence);
+  assert(_init_extensions_cookies.damage.sequence);
 
   xcb_damage_query_version_reply_t *damage_version_reply = 
     xcb_damage_query_version_reply(globalconf.connection,
-				   _damage_version_cookie,
+				   _init_extensions_cookies.damage,
 				   NULL);
 
   if(!damage_version_reply)
@@ -137,11 +143,11 @@ display_init_extensions_finalise(void)
 
   free(damage_version_reply);
 
-  assert(_xfixes_version_cookie.sequence);
+  assert(_init_extensions_cookies.xfixes.sequence);
 
   xcb_xfixes_query_version_reply_t *xfixes_version_reply =
     xcb_xfixes_query_version_reply(globalconf.connection,
-				  _xfixes_version_cookie,
+				  _init_extensions_cookies.xfixes,
 				  NULL);
 
   /* Need Region objects support */
