@@ -25,6 +25,7 @@
 #include <xcb/xcb.h>
 #include <xcb/render.h>
 #include <xcb/xcb_renderutil.h>
+#include <xcb/xcb_aux.h>
 
 #include "structs.h"
 #include "render.h"
@@ -134,12 +135,23 @@ render_root_background_fill(xcb_render_picture_t dst)
 }
 
 static inline void
-render_paint_root_background(void)
+render_paint_root_buffer_to_root(void)
+{
+  xcb_render_composite(globalconf.connection,
+		       XCB_RENDER_PICT_OP_SRC,
+		       globalconf.root_buffer_picture, XCB_NONE, globalconf.root_picture,
+		       0, 0, 0, 0, 0, 0,
+		       globalconf.screen->width_in_pixels,
+		       globalconf.screen->height_in_pixels);
+}
+
+static inline void
+render_paint_root_background_to_buffer(void)
 {
   /* Render the background with the root Picture */
   xcb_render_composite(globalconf.connection, XCB_RENDER_PICT_OP_SRC,
 		       globalconf.root_background_picture, XCB_NONE,
-		       globalconf.root_picture, 0, 0, 0, 0, 0, 0,
+		       globalconf.root_buffer_picture, 0, 0, 0, 0, 0, 0,
 		       globalconf.screen->width_in_pixels,
 		       globalconf.screen->height_in_pixels);
 }
@@ -201,20 +213,44 @@ render_init_root_picture(void)
       return false;
     }
 
-  globalconf.root_picture = xcb_generate_id(globalconf.connection);
-  const uint32_t root_picture_val = XCB_SUBWINDOW_MODE_INCLUDE_INFERIORS;
+  /* Create Picture associated with the root window */
+  {
+    globalconf.root_picture = xcb_generate_id(globalconf.connection);
+    const uint32_t root_picture_val = XCB_SUBWINDOW_MODE_INCLUDE_INFERIORS;
 
-  xcb_render_create_picture(globalconf.connection,
-			    globalconf.root_picture,
-			    globalconf.screen->root,
-			    globalconf.root_pictvisual->format,
-			    XCB_RENDER_CP_SUBWINDOW_MODE,
-			    &root_picture_val);
+    xcb_render_create_picture(globalconf.connection,
+			      globalconf.root_picture,
+			      globalconf.screen->root,
+			      globalconf.root_pictvisual->format,
+			      XCB_RENDER_CP_SUBWINDOW_MODE,
+			      &root_picture_val);
+  }
+
+  /* Create a buffer Picture to  avoid image flickering when trying to
+     draw on the root window Picture directly */
+  {
+    xcb_pixmap_t pixmap = xcb_generate_id(globalconf.connection);
+    
+    xcb_create_pixmap(globalconf.connection, globalconf.screen->root_depth, pixmap,
+		      globalconf.screen->root, globalconf.screen->width_in_pixels,
+		      globalconf.screen->height_in_pixels);
+
+    globalconf.root_buffer_picture = xcb_generate_id(globalconf.connection);
+
+    xcb_render_create_picture(globalconf.connection,
+			      globalconf.root_buffer_picture,
+			      pixmap,
+			      globalconf.root_pictvisual->format,
+			      0, NULL);
+
+    xcb_free_pixmap(globalconf.connection, pixmap);
+  }
 
   /* Initialise the root  background Picture and paint it  to the root
-     Picture */
+     Picture buffer for now */
   render_init_root_background();
-  render_paint_root_background();
+  render_paint_root_background_to_buffer();
+  render_paint_root_buffer_to_root();
 
   return true;
 }
@@ -243,41 +279,18 @@ render_init_finalise(void)
   return render_init_root_picture();
 }
 
+#ifdef __DEBUG__
+static uint32_t _paint_all_counter = 0;
+#endif
+
 void
 render_paint_all(void)
 {
-  render_paint_root_background();
-
-  /* TODO: disable for now */
 #if 0
-  if(globalconf.damaged_region)
-    {
-      xcb_xfixes_fetch_region_reply_t *region_reply =
-	xcb_xfixes_fetch_region_reply(globalconf.connection,
-				      xcb_xfixes_fetch_region_unchecked(globalconf.connection,
-									globalconf.damaged_region),
-				      NULL);
-
-      if(region_reply)
-	{
-	  xcb_rectangle_t *rectangles = xcb_xfixes_fetch_region_rectangles(region_reply);
-	  
-	  for(int rectn = 0; rectn < xcb_xfixes_fetch_region_rectangles_length(region_reply);
-	      rectn++)
-	    debug("BAARRR: %ux%u +%d +%d", rectangles[rectn].width, rectangles[rectn].height,
-		  rectangles[rectn].x, rectangles[rectn].y);
-
-	  free(region_reply);
-	}
-      else
-	debug("FOOOOOO: No rectangles");
-    }
-
-  xcb_xfixes_set_picture_clip_region(globalconf.connection,
-				     globalconf.root_picture,
-				     globalconf.damaged_region,
-				     0, 0);
+  uint8_t render_composite_op;
+  xcb_render_picture_t window_alpha_picture;
 #endif
+  render_paint_root_background_to_buffer();
 
   for(window_t *window = globalconf.windows; window; window = window->next)
     {
@@ -317,9 +330,60 @@ render_paint_all(void)
 				    &create_picture_val);
 	}
 
+#if 0
+      if(window->opacity != OPACITY_OPAQUE)
+	{
+	  render_composite_op = XCB_RENDER_PICT_OP_OVER;
+
+	  if(!window->alpha_picture)
+	    {
+	      const xcb_pixmap_t pixmap = xcb_generate_id(globalconf.connection);
+
+	      xcb_create_pixmap(globalconf.connection, 32, pixmap,
+				globalconf.screen->root, 100, 100);
+
+	      const uint32_t create_picture_val = true;
+
+	      window->alpha_picture = xcb_generate_id(globalconf.connection);
+
+	      xcb_render_create_picture(globalconf.connection,
+					window->alpha_picture,
+					pixmap,
+					xcb_render_util_find_standard_format(globalconf.pict_formats,
+									     XCB_PICT_STANDARD_ARGB_32)->id,
+					XCB_RENDER_CP_REPEAT,
+					&create_picture_val);
+
+	      const xcb_render_color_t color = {
+		.alpha = (uint16_t) ((0.5 / OPACITY_OPAQUE) * OPACITY_OPAQUE),
+		.red = 0, .green = 0, .blue = 0
+	      };
+
+	      const xcb_rectangle_t rect = { .x = 0, .y = 0, .width = 1, .height = 1 };
+
+	      xcb_render_fill_rectangles(globalconf.connection,
+					 XCB_RENDER_PICT_OP_SRC,
+					 window->alpha_picture,
+					 color, 1, &rect);
+
+	      xcb_free_pixmap(globalconf.connection, pixmap);
+	    }
+
+	  window_alpha_picture = window->alpha_picture;
+	  debug("Non-opaque window");
+	}
+      else
+	{
+	  render_composite_op = XCB_RENDER_PICT_OP_SRC;
+	  window_alpha_picture = XCB_NONE;
+	}
+#endif
+      /* TODO: Add here otherwise moving a window is quite slow */
+      xcb_aux_sync(globalconf.connection);
+
       xcb_render_composite(globalconf.connection,
 			   XCB_RENDER_PICT_OP_SRC,
-			   window->picture, XCB_NONE, globalconf.root_picture,
+			   window->picture, XCB_NONE, globalconf.root_buffer_picture,
 			   0, 0, 0, 0,
 			   window->geometry->x,
 			   window->geometry->y,
@@ -327,13 +391,13 @@ render_paint_all(void)
 			   (uint16_t) (window->geometry->height + window->geometry->border_width * 2));
     }
 
-  /* TODO: disable for now */
-#if 0
-  if(globalconf.damaged_region)
-    {
-      xcb_xfixes_destroy_region(globalconf.connection, globalconf.damaged_region);
-      globalconf.damaged_region = XCB_NONE;
-    }
+  /* This step  is necessary  (e.g. don't paint  directly on  the root
+     window Picture in  the loop) to avoid flickering  which is really
+     annoying */
+  render_paint_root_buffer_to_root();
+
+#ifdef __DEBUG__
+  debug("COUNT: %ju", (uintmax_t) ++_paint_all_counter);
 #endif
 }
 

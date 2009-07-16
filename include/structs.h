@@ -41,13 +41,11 @@ typedef struct _conf_t
   xcb_event_handlers_t evenths;
   xcb_window_t cm_window;
   window_t *windows;
-  /* TODO: disable for now */
-#if 0
-  xcb_xfixes_region_t damaged_region;
-#endif
+  bool do_repaint;
 
   xcb_render_query_pict_formats_reply_t *pict_formats;
   xcb_render_picture_t root_picture;
+  xcb_render_picture_t root_buffer_picture;
   xcb_render_picture_t root_background_picture;
   xcb_render_pictvisual_t *root_pictvisual;
 } conf_t;

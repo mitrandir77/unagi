@@ -214,55 +214,7 @@ event_handle_damage_notify(void *data __attribute__((unused)),
   xcb_damage_subtract(globalconf.connection, window->damage,
 		      XCB_NONE, XCB_NONE);
 
-  /* TODO: disable for now */
-#if 0
-  /* Get the window region and add it to the damaged region */
-  xcb_xfixes_region_t parts = xcb_generate_id(globalconf.connection);
-
-  if(!window->damaged)
-    {
-      const xcb_rectangle_t r = {
-	.x = window->geometry->x, .y = window->geometry->y,
-	.width = (uint16_t) (window->geometry->width + window->geometry->border_width * 2),
-	.height = (uint16_t) (window->geometry->height + window->geometry->border_width * 2)
-      };
-
-      xcb_xfixes_create_region(globalconf.connection, parts, 1, &r);
-
-      xcb_xfixes_create_region_from_window(globalconf.connection, parts, window->id,
-					   XCB_SHAPE_SK_CLIP);
-
-      /* Subtract the  current window Damage  (e.g. set it  as empty),
-	 otherwise this window would  not received DamageNotify as the
-	 window area is now non-empty */
-      xcb_damage_subtract(globalconf.connection, window->damage, XCB_NONE,
-			  XCB_NONE);
-    }
-  else
-    {
-      xcb_xfixes_create_region(globalconf.connection, parts, 0, NULL);
-
-      xcb_damage_subtract(globalconf.connection, window->damage, XCB_NONE,
-			  parts);
-
-      xcb_xfixes_translate_region(globalconf.connection, parts,
-				  (int16_t) (window->geometry->x + window->geometry->border_width),
-				  (int16_t) (window->geometry->y + window->geometry->border_width));
-
-    }
-
-  if(globalconf.damaged_region)
-    {
-      xcb_xfixes_union_region(globalconf.connection,
-			      globalconf.damaged_region, parts,
-			      globalconf.damaged_region);
-
-      xcb_xfixes_destroy_region(globalconf.connection, parts);
-    }
-  else
-
-    globalconf.damaged_region = parts;
-#endif
+  globalconf.do_repaint = true;
   window->damaged = true;
 
   return 0;

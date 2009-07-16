@@ -203,8 +203,9 @@ main(void)
 	 painting, all the DamageNotify have to be received */
       xcb_event_poll_for_event_loop(&globalconf.evenths);
 
-      /* Now paint the window */
-      render_paint_all();
+      /* Now paint the windows */
+      if(globalconf.do_repaint)
+	render_paint_all();
     }
   while(true);
 

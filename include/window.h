@@ -37,6 +37,7 @@ typedef struct _window_t
   xcb_pixmap_t pixmap;
 
   xcb_render_picture_t picture;
+  xcb_render_picture_t alpha_picture;
 
   struct _window_t *next;
 } window_t;
