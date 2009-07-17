@@ -29,6 +29,7 @@
 #include "util.h"
 #include "render.h"
 #include "window.h"
+#include "atoms.h"
 
 static const char *composite_request_label[] = {
   "CompositeQueryVersion",
@@ -153,9 +154,9 @@ event_handle_error(void *data __attribute__((unused)),
     }
 
   warn("X error: request=%s (major=%ju, minor=%ju), error=%s",
-       error_get_request_label(error->major_code, error->minor_code),
-       (uintmax_t) error->major_code, (uintmax_t) error->minor_code,
-       error_label);
+	error_get_request_label(error->major_code, error->minor_code),
+	(uintmax_t) error->major_code, (uintmax_t) error->minor_code,
+	error_label);
 
   return 0;
 }
@@ -208,6 +209,13 @@ event_handle_damage_notify(void *data __attribute__((unused)),
 
   window_t *window = window_list_get(event->drawable);
 
+  /* The window may have disappeared in the meantime */
+  if(!window)
+    {
+      debug("Window %jx has disappeared", (uintmax_t) event->drawable);
+      return 0;
+    }
+
   /* Subtract  the  current window  Damage  (e.g.  set  it as  empty),
      otherwise  this window  would  not received  DamageNotify as  the
      window area is now non-empty */
@@ -251,8 +259,9 @@ event_handle_configure_notify(void *data __attribute__((unused)),
 			      xcb_connection_t *c __attribute__((unused)),
 			      xcb_configure_notify_event_t *event)
 {
-  debug("ConfigureNotify: event=%jx, window=%jx (%jux%ju +%jd +%jd)",
+  debug("ConfigureNotify: event=%jx, window=%jx above=%jx (%jux%ju +%jd +%jd)",
 	(uintmax_t) event->event, (uintmax_t) event->window,
+	(uintmax_t) event->above_sibling, 
 	(uintmax_t) event->width, (uintmax_t) event->height,
 	(intmax_t) event->x, (intmax_t) event->y);
 
@@ -308,6 +317,11 @@ event_handle_create_notify(void *data __attribute__((unused)),
 	(intmax_t) event->x, (intmax_t) event->y);
 
   window_t *new_window = window_add_one(event->window);
+  if(!new_window)
+    {
+      warn("Can't create window %jx", (uintmax_t) event->window);
+      return 0;
+    }
 
   /* No need  to do  a GetGeometry request  as the window  geometry is
      given in the CreateNotify event itself */
@@ -330,6 +344,17 @@ event_handle_destroy_notify(void *data __attribute__((unused)),
 	(uintmax_t) event->event, (uintmax_t) event->window);
 
   window_t *window = window_list_get(event->window);
+
+  if(!window)
+    {
+      warn("Can't destroy window %jx", (uintmax_t) event->window);
+      return 0;
+    }
+
+  /* If a DestroyNotify has been received, then the damage object have
+     been freed automatically */
+  window->damage = XCB_NONE;
+
   window_list_remove_window(window);
 
   return 0;
@@ -345,6 +370,11 @@ event_handle_map_notify(void *data __attribute__((unused)),
 
   window_t *window = window_list_get(event->window);
   window->attributes->map_state = XCB_MAP_STATE_VIEWABLE;
+
+  xcb_get_property_cookie_t opacity_cookie = window_get_opacity_property(window->id);
+  window_register_property_notify(window);
+  window->opacity = window_get_opacity_property_reply(opacity_cookie);
+
   window->damaged = false;
 
   return 0;
@@ -358,6 +388,15 @@ event_handle_reparent_notify(void *data __attribute__((unused)),
   debug("ReparentNotify: event=%jx, window=%jx, parent=%jx",
 	(uintmax_t) event->event, (uintmax_t) event->window,
 	(uintmax_t) event->parent);
+
+  /* TODO */
+  if(event->parent == globalconf.screen->root)
+    {
+      window_t *window = window_add_one(event->window);
+      window_register_property_notify(window);
+    }
+  else
+    window_list_remove_window(window_list_get(event->window));
 
   return 0;
 }
@@ -402,8 +441,22 @@ event_handle_property_notify(void *data __attribute__((unused)),
 			     xcb_connection_t *c __attribute__((unused)),
 			     xcb_property_notify_event_t *event)
 {
-  debug("PropertyNotify: window=%jx, atom=%jx",
+  debug("PropertyNotify: window=%jx, atom=%ju",
 	(uintmax_t) event->window, (uintmax_t) event->atom);
+
+  if(event->atom == _NET_WM_WINDOW_OPACITY)
+    {
+      window_t *window = window_list_get(event->window);
+      window->opacity = window_get_opacity_property_reply(window_get_opacity_property(window->id));
+    }
+  /* Has the background image been updated */
+  else if(atoms_is_background_atom(event->atom))
+    {
+      render_free_picture(&globalconf.root_background_picture);
+      render_init_root_background();
+    }
+
+  globalconf.do_repaint = true;
 
   return 0;
 }

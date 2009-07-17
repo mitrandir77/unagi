@@ -97,3 +97,13 @@ atoms_init_finalise(void)
   fatal("Cannot initialise atoms");
   return false;
 }
+
+bool
+atoms_is_background_atom(const xcb_atom_t atom)
+{
+  for(int atom_n = 0; atom_n < background_properties_atoms_len; atom_n++)
+    if(atom == *background_properties_atoms[atom_n])
+      return true;
+
+  return false;
+}

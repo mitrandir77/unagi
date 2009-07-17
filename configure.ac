@@ -49,7 +49,8 @@ AC_ARG_ENABLE(debug,
         [HAVE_DEBUG=yes],
         [HAVE_DEBUG=no])
 
-if test "$HAVE_DEBUG" = "yes"; then
+if test "x$HAVE_DEBUG" = "xyes"
+then
    CFLAGS="$CFLAGS -ggdb -O0 -D__DEBUG__"
 fi
 

@@ -279,25 +279,60 @@ render_init_finalise(void)
   return render_init_root_picture();
 }
 
-#ifdef __DEBUG__
-static uint32_t _paint_all_counter = 0;
-#endif
+static void
+render_create_window_alpha_picture(window_t *window)
+{
+  const xcb_pixmap_t pixmap = xcb_generate_id(globalconf.connection);
+
+  xcb_create_pixmap(globalconf.connection, 8, pixmap,
+		    globalconf.screen->root, 1, 1);
+
+  const uint32_t create_picture_val = true;
+
+  window->alpha_picture = xcb_generate_id(globalconf.connection);
+
+  xcb_render_create_picture(globalconf.connection,
+			    window->alpha_picture,
+			    pixmap,
+			    xcb_render_util_find_standard_format(globalconf.pict_formats,
+								 XCB_PICT_STANDARD_A_8)->id,
+			    XCB_RENDER_CP_REPEAT,
+			    &create_picture_val);
+
+  const xcb_render_color_t color = {
+    .red = 0, .green = 0, .blue = 0,
+    .alpha = (uint16_t) (((double) window->opacity / OPACITY_OPAQUE) * 0xffff)
+  };
+
+  const xcb_rectangle_t rect = { .x = 0, .y = 0, .width = 1, .height = 1 };
+
+  xcb_render_fill_rectangles(globalconf.connection,
+			     XCB_RENDER_PICT_OP_SRC,
+			     window->alpha_picture,
+			     color, 1, &rect);
+
+  xcb_free_pixmap(globalconf.connection, pixmap);
+}
 
 void
 render_paint_all(void)
 {
-#if 0
+#if __DEBUG__
+  static uint32_t _paint_all_counter = 0;
+#endif
+
+  render_paint_root_background_to_buffer();
+
   uint8_t render_composite_op;
   xcb_render_picture_t window_alpha_picture;
-#endif
-  render_paint_root_background_to_buffer();
 
   for(window_t *window = globalconf.windows; window; window = window->next)
     {
       if(!window->damaged)
 	continue;
 
-      if(window->geometry->x + window->geometry->width < 1 ||
+      if(!window->geometry ||
+	 window->geometry->x + window->geometry->width < 1 ||
 	 window->geometry->y + window->geometry->height < 1 ||
 	 window->geometry->x >= globalconf.screen->width_in_pixels ||
 	 window->geometry->y >= globalconf.screen->height_in_pixels)
@@ -330,60 +365,26 @@ render_paint_all(void)
 				    &create_picture_val);
 	}
 
-#if 0
       if(window->opacity != OPACITY_OPAQUE)
 	{
-	  render_composite_op = XCB_RENDER_PICT_OP_OVER;
-
 	  if(!window->alpha_picture)
-	    {
-	      const xcb_pixmap_t pixmap = xcb_generate_id(globalconf.connection);
+	    render_create_window_alpha_picture(window);
 
-	      xcb_create_pixmap(globalconf.connection, 32, pixmap,
-				globalconf.screen->root, 100, 100);
-
-	      const uint32_t create_picture_val = true;
-
-	      window->alpha_picture = xcb_generate_id(globalconf.connection);
-
-	      xcb_render_create_picture(globalconf.connection,
-					window->alpha_picture,
-					pixmap,
-					xcb_render_util_find_standard_format(globalconf.pict_formats,
-									     XCB_PICT_STANDARD_ARGB_32)->id,
-					XCB_RENDER_CP_REPEAT,
-					&create_picture_val);
-
-	      const xcb_render_color_t color = {
-		.alpha = (uint16_t) ((0.5 / OPACITY_OPAQUE) * OPACITY_OPAQUE),
-		.red = 0, .green = 0, .blue = 0
-	      };
-
-	      const xcb_rectangle_t rect = { .x = 0, .y = 0, .width = 1, .height = 1 };
-
-	      xcb_render_fill_rectangles(globalconf.connection,
-					 XCB_RENDER_PICT_OP_SRC,
-					 window->alpha_picture,
-					 color, 1, &rect);
-
-	      xcb_free_pixmap(globalconf.connection, pixmap);
-	    }
-
+	  render_composite_op = XCB_RENDER_PICT_OP_OVER;
 	  window_alpha_picture = window->alpha_picture;
-	  debug("Non-opaque window");
 	}
       else
 	{
 	  render_composite_op = XCB_RENDER_PICT_OP_SRC;
 	  window_alpha_picture = XCB_NONE;
 	}
-#endif
+
       /* TODO: Add here otherwise moving a window is quite slow */
       xcb_aux_sync(globalconf.connection);
 
       xcb_render_composite(globalconf.connection,
-			   XCB_RENDER_PICT_OP_SRC,
-			   window->picture, XCB_NONE, globalconf.root_buffer_picture,
+			   render_composite_op,
+			   window->picture, window_alpha_picture, globalconf.root_buffer_picture,
 			   0, 0, 0, 0,
 			   window->geometry->x,
 			   window->geometry->y,

@@ -42,12 +42,15 @@ typedef struct _window_t
   struct _window_t *next;
 } window_t;
 
-#define OPACITY_OPAQUE UINT_MAX
+#define OPACITY_OPAQUE 0xffffffff
 
 void window_free_pixmap(window_t *);
 void window_list_cleanup(void);
 window_t *window_list_get(const xcb_window_t);
 void window_list_remove_window(window_t *);
+xcb_get_property_cookie_t window_get_opacity_property(xcb_window_t);
+uint32_t window_get_opacity_property_reply(xcb_get_property_cookie_t);
+void window_register_property_notify(window_t *);
 void window_get_root_background_pixmap(void);
 xcb_pixmap_t window_get_root_background_pixmap_finalise(void);
 xcb_pixmap_t window_new_root_background_pixmap(void);

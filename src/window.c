@@ -66,7 +66,6 @@ window_free_pixmap(window_t *window)
 static void
 window_list_free_window(window_t *window)
 {
-
   /* Destroy the damage object if any */
   if(window->damage != XCB_NONE)
     {
@@ -132,7 +131,7 @@ window_list_get(const xcb_window_t window_id)
   return window;
 }
 
-static xcb_get_property_cookie_t
+xcb_get_property_cookie_t
 window_get_opacity_property(xcb_window_t window_id)
 {
   debug("window_get_opacity_property: window: %x", window_id);
@@ -141,7 +140,7 @@ window_get_opacity_property(xcb_window_t window_id)
 				    _NET_WM_WINDOW_OPACITY, CARDINAL, 0, 1);
 }
 
-static uint32_t
+uint32_t
 window_get_opacity_property_reply(xcb_get_property_cookie_t cookie)
 {
   xcb_get_property_reply_t *reply = xcb_get_property_reply(globalconf.connection,
@@ -160,6 +159,16 @@ window_get_opacity_property_reply(xcb_get_property_cookie_t cookie)
 
   free(reply);
   return opacity;
+}
+
+void
+window_register_property_notify(window_t *window)
+{
+  /* Get transparency messages */
+  const uint32_t select_input_val = XCB_EVENT_MASK_PROPERTY_CHANGE;
+
+  xcb_change_window_attributes(globalconf.connection, window->id,
+			       XCB_CW_EVENT_MASK, &select_input_val);
 }
 
 /* TODO! */
@@ -242,25 +251,26 @@ window_get_pixmap(window_t *window)
   return pixmap;
 }
 
-static void
-window_add_xrequests(const xcb_window_t window_id,
-		     xcb_get_window_attributes_cookie_t *attributes_cookie,
-		     xcb_get_property_cookie_t *opacity_cookie)
+static xcb_get_window_attributes_cookie_t
+window_add_xrequests(const xcb_window_t window_id)
 {
-  *attributes_cookie = xcb_get_window_attributes_unchecked(globalconf.connection,
-							   window_id);
-
-  *opacity_cookie = window_get_opacity_property(window_id);
+  return xcb_get_window_attributes_unchecked(globalconf.connection,
+					     window_id);
 }
 
-static void
+static xcb_get_window_attributes_reply_t *
 window_add_xrequests_finalise(window_t * const window,
-			      const xcb_get_window_attributes_cookie_t attributes_cookie,
-			      const xcb_get_property_cookie_t opacity_cookie)
+			      const xcb_get_window_attributes_cookie_t attributes_cookie)
 {
   window->attributes = xcb_get_window_attributes_reply(globalconf.connection,
 						       attributes_cookie,
 						       NULL);
+
+  if(!window->attributes)
+    {
+      warn("GetWindowAttributes failed for window %jx", (uintmax_t) window->id);
+      return NULL;
+    }
 
   if(window->attributes->_class == XCB_WINDOW_CLASS_INPUT_ONLY)
     window->damage = XCB_NONE;
@@ -272,7 +282,7 @@ window_add_xrequests_finalise(window_t * const window,
 			XCB_DAMAGE_REPORT_LEVEL_NON_EMPTY);
     }
 
-  window->opacity = window_get_opacity_property_reply(opacity_cookie);
+  return window->attributes;
 }
 
 void
@@ -281,7 +291,6 @@ window_add_all(const int nwindows,
 {
   xcb_get_window_attributes_cookie_t attributes_cookies[nwindows];
   xcb_get_geometry_cookie_t geometry_cookies[nwindows];
-  xcb_get_property_cookie_t opacity_cookies[nwindows];
 
   for(int nwindow = 0; nwindow < nwindows; ++nwindow)
     {
@@ -289,9 +298,8 @@ window_add_all(const int nwindows,
       if(new_windows_id[nwindow] == globalconf.cm_window)
 	continue;
 
-      window_add_xrequests(new_windows_id[nwindow],
-			   &attributes_cookies[nwindow],
-			   &opacity_cookies[nwindow]);
+      attributes_cookies[nwindow] =
+	window_add_xrequests(new_windows_id[nwindow]);
 
       /* Only  necessary  when adding  all  the  windows, otherwise  a
 	 window  is only  added on  CreateNotify event  which actually
@@ -305,38 +313,61 @@ window_add_all(const int nwindows,
   for(int nwindow = 0; nwindow < nwindows; ++nwindow)
     new_windows[nwindow] = window_list_append(new_windows_id[nwindow]);
 
+  xcb_get_property_cookie_t opacity_cookies[nwindows];
+  memset(opacity_cookies, 0, sizeof(xcb_get_property_cookie_t) * (size_t) nwindows);
+
   for(int nwindow = 0; nwindow < nwindows; ++nwindow)
     {
       /* Ignore the CM window */
       if(new_windows_id[nwindow] == globalconf.cm_window)
 	continue;
 
-      window_add_xrequests_finalise(new_windows[nwindow],
-				    attributes_cookies[nwindow],
-				    opacity_cookies[nwindow]);
+      if(!window_add_xrequests_finalise(new_windows[nwindow],
+					attributes_cookies[nwindow]))
+	{
+	  window_list_remove_window(new_windows[nwindow]);
+	  continue;
+	}
+
+      /* The  opacity property is  only meaninful  when the  window is
+	 mapped, because when the window is unmapped, we don't receive
+	 PropertyNotify */
+      if(new_windows[nwindow]->attributes->map_state == XCB_MAP_STATE_VIEWABLE)
+	opacity_cookies[nwindow] = window_get_opacity_property(new_windows_id[nwindow]);
 
       new_windows[nwindow]->geometry =
 	xcb_get_geometry_reply(globalconf.connection,
 			       geometry_cookies[nwindow],
 			       NULL);
     }
+
+  for(int nwindow = 0; nwindow < nwindows; ++nwindow)
+    if(opacity_cookies[nwindow].sequence)
+      {
+	new_windows[nwindow]->opacity =
+	  window_get_opacity_property_reply(opacity_cookies[nwindow]);
+
+	window_register_property_notify(new_windows[nwindow]);
+      }
 }
 
 window_t *
 window_add_one(const xcb_window_t new_window_id)
 {
   xcb_get_window_attributes_cookie_t attributes_cookie;
-  xcb_get_property_cookie_t opacity_cookie;
 
-  window_add_xrequests(new_window_id,
-		       &attributes_cookie,
-		       &opacity_cookie);
+  attributes_cookie = window_add_xrequests(new_window_id);
 
   window_t *new_window = window_list_append(new_window_id);
 
-  window_add_xrequests_finalise(new_window,
-				attributes_cookie,
-				opacity_cookie);
+  if(!window_add_xrequests_finalise(new_window,
+				    attributes_cookie))
+    {
+      window_list_remove_window(new_window);
+      return NULL;
+    }
+
+  new_window->opacity = OPACITY_OPAQUE;
 
   return new_window;
 }
@@ -346,11 +377,6 @@ window_restack(window_t *window, xcb_window_t window_new_above_id)
 {
   assert(globalconf.windows);
   assert(window);
-
-  /* Check whether the above window has actually changed */
-  if((window->next && window->next->id == window_new_above_id) ||
-     (!window->next && window_new_above_id == XCB_NONE))
-    return;
 
   /* Remove the window from the list */
   if(globalconf.windows == window)

@@ -34,5 +34,6 @@ extern const uint8_t background_properties_atoms_len;
 
 void atoms_init(void);
 bool atoms_init_finalise(void);
+bool atoms_is_background_atom(const xcb_atom_t);
 
 #endif
