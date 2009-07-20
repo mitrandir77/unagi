@@ -17,7 +17,6 @@
  */
 
 #include <stdio.h>
-#include <stdlib.h>
 #include <stdarg.h>
 
 #include "util.h"
@@ -30,6 +29,12 @@
   va_end(ap);						\
   putc('\n', stderr);
 
+/** Fatal error message which exits the program
+ *
+ * \param line Line number
+ * \param func Calling function string
+ * \param fmt Format of the message
+ */
 void
 _fatal(const int line, const char *func, const char *fmt, ...)
 {
@@ -37,12 +42,24 @@ _fatal(const int line, const char *func, const char *fmt, ...)
   exit(EXIT_FAILURE);
 }
 
+/** Warning message
+ *
+ * \param line Line number
+ * \param func Calling function string
+ * \param fmt Format of the message
+ */
 void
 _warn(const int line, const char *func, const char *fmt, ...)
 {
   DO_DISPLAY_MESSAGE("WARN");
 }
 
+/** Debugging message
+ *
+ * \param line Line number
+ * \param func Calling function string
+ * \param fmt Format of the message
+ */
 void
 #ifdef __DEBUG__
 _debug(const int line, const char *func, const char *fmt, ...)
