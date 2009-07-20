@@ -181,7 +181,7 @@ void
 window_get_root_background_pixmap(void)
 {
   for(uint8_t background_property_n = 0;
-      background_property_n < background_properties_atoms_len;
+      background_properties_atoms[background_property_n];
       background_property_n++)
     {
       root_background_cookies[background_property_n] =
@@ -200,7 +200,7 @@ window_get_root_background_pixmap_finalise(void)
   xcb_get_property_reply_t *root_property_reply;
 
   for(uint8_t background_property_n = 0;
-      background_property_n < background_properties_atoms_len;
+      background_properties_atoms[background_property_n];
       background_property_n++)
     {
       assert(root_background_cookies[background_property_n].sequence);

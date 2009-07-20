@@ -30,7 +30,6 @@ extern xcb_atom_t _XROOTPMAP_ID;
 extern xcb_atom_t _XSETROOT_ID;
 
 extern const xcb_atom_t *background_properties_atoms[];
-extern const uint8_t background_properties_atoms_len;
 
 void atoms_init(void);
 bool atoms_init_finalise(void);

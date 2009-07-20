@@ -18,7 +18,6 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include <stdio.h>
 #include <assert.h>
 #include <stdlib.h>
 
@@ -29,6 +28,13 @@
 #include "util.h"
 #include "structs.h"
 
+/** Atoms used but not defined in either ICCCM and EWMH */
+xcb_atom_t _NET_WM_WINDOW_OPACITY;
+xcb_atom_t _XROOTPMAP_ID;
+xcb_atom_t _XSETROOT_ID;
+
+/** Structure defined on purpose to be able to send all the InternAtom
+    requests */
 typedef struct {
   xcb_atom_t *value;
   xcb_intern_atom_cookie_t cookie;
@@ -36,26 +42,28 @@ typedef struct {
   char *name;
 } atom_t;
 
-/* TODO: generate automatically like in xcb-util/ewmh */
-xcb_atom_t _NET_WM_WINDOW_OPACITY;
-xcb_atom_t _XROOTPMAP_ID;
-xcb_atom_t _XSETROOT_ID;
-
+/** Prepare  InternAtom  request  (EWMH  atoms are  initialised  using
+    xcb-util/ewmh library) */
 static atom_t atoms_list[] = {
   { &_NET_WM_WINDOW_OPACITY, { 0 }, sizeof("_NET_WM_WINDOW_OPACITY") - 1, "_NET_WM_WINDOW_OPACITY" },
   { &_XROOTPMAP_ID, { 0 }, sizeof("_XROOTPMAP_ID") - 1, "_XROOTPMAP_ID" },
   { &_XSETROOT_ID, { 0 }, sizeof("_XSETROOT_ID") - 1, "_XSETROOT_ID" }
 };
 
-static ssize_t atoms_list_len = countof(atoms_list);
+static const ssize_t atoms_list_len = countof(atoms_list);
 
+/** Array containing  pointers to  background image property  atoms of
+ *  the  root window, the  value of  these atoms  are the  Pixmap XID,
+ *  these  atoms  are  not  standardized  but commonly  used  in  most
+ *  software responsible to set the root window background Pixmap
+ */
 const xcb_atom_t *background_properties_atoms[] = {
   &_XROOTPMAP_ID,
-  &_XSETROOT_ID
+  &_XSETROOT_ID,
+  NULL
 };
 
-const uint8_t background_properties_atoms_len = countof(background_properties_atoms);
-
+/** Send InternAtom requests to get the Atoms X identifiers */
 void
 atoms_init(void)
 {
@@ -68,6 +76,12 @@ atoms_init(void)
 							  atoms_list[atom_n].name);
 }
 
+/** Get  replies  to  the  previously sent  InternAtom  request.  This
+ * function is  not thread-safe but we  don't care as it  is only used
+ * during initialisation
+ *
+ * \return true on success, false otherwise
+ */
 bool
 atoms_init_finalise(void)
 {
@@ -75,7 +89,6 @@ atoms_init_finalise(void)
     goto init_atoms_error;
 
   xcb_intern_atom_reply_t *atom_reply;
-
   for(int atom_n = 0; atom_n < atoms_list_len; atom_n++)
     {
       assert(atoms_list[atom_n].cookie.sequence);
@@ -98,10 +111,17 @@ atoms_init_finalise(void)
   return false;
 }
 
+/** Check  whether  the given  Atom  is  actually  used to  store  the
+ *  background Pixmap XID
+ *
+ * \param atom The atom
+ * \return Return  true if  the given Atom  is actually used  to store
+ *         background image Pixmap, false otherwise
+ */
 bool
 atoms_is_background_atom(const xcb_atom_t atom)
 {
-  for(int atom_n = 0; atom_n < background_properties_atoms_len; atom_n++)
+  for(int atom_n = 0; background_properties_atoms[atom_n]; atom_n++)
     if(atom == *background_properties_atoms[atom_n])
       return true;
 
