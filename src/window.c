@@ -60,6 +60,8 @@ window_free_pixmap(window_t *window)
     {
       xcb_free_pixmap(globalconf.connection, window->pixmap);
       window->pixmap = XCB_NONE;
+
+      render_free_picture(&window->picture);
     }
 }
 
@@ -74,7 +76,6 @@ window_list_free_window(window_t *window)
     }
 
   window_free_pixmap(window);
-  render_free_picture(&window->picture);
 
   free(window->attributes);
   free(window->geometry);
