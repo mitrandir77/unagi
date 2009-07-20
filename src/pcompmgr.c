@@ -126,7 +126,8 @@ main(void)
 
   /* Initialise   extensions   based   on   the  cache   and   perform
      initialisation of the rendering backend */
-  if(!display_init_extensions() || !render_init())
+  display_init_extensions();
+  if(!render_init())
     return EXIT_FAILURE;
 
   /* Check ownership for WM_CM_Sn before actually claiming it (ICCCM) */
@@ -145,7 +146,8 @@ main(void)
 
   /* Check  extensions  version   and  finish  initialisation  of  the
      rendering backend */
-  if(!display_init_extensions_finalise() || !render_init_finalise())
+  display_init_extensions_finalise();
+  if(!render_init_finalise())
     return EXIT_FAILURE;
 
   /* Validate  errors   and  get  PropertyNotify   needed  to  acquire

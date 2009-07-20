@@ -34,20 +34,37 @@
 #include "window.h"
 #include "util.h"
 
-/* TODO: global variables? */
-typedef struct
-{
+/** Structure   holding   cookies   for   QueryVersion   requests   of
+    extensions */
+typedef struct {
   xcb_xfixes_query_version_cookie_t xfixes;
   xcb_damage_query_version_cookie_t damage;
   xcb_composite_query_version_cookie_t composite;
 }  init_extensions_cookies_t;
 
+/** NOTICE:  All above  variables are  not thread-safe,  but  well, we
+    don't care as they are only used during initialisation */
+
+/** Initialise the  QueryVersion extensions cookies with  a 0 sequence
+    number, this  is not thread-safe but  we don't care here  as it is
+    only used during initialisation */
 static init_extensions_cookies_t _init_extensions_cookies = { { 0 }, { 0 }, { 0 } };
-  
+
+/** Cookie request used when acquiring ownership on _NET_WM_CM_Sn */
 static xcb_get_selection_owner_cookie_t _get_wm_cm_owner_cookie = { 0 };
+
+/** Cookie  when querying  the  windows tree  starting  from the  root
+    window */
 static xcb_query_tree_cookie_t _query_tree_cookie = { 0 };
 
-bool
+/** Check  whether  the  needed   X  extensions  are  present  on  the
+ *  server-side (all the data  have been previously pre-fetched in the
+ *  extension  cache). Then send  requests to  check their  version by
+ *  sending  QueryVersion  requests which  is  compulsory because  the
+ *  client  MUST  negotiate  the   version  of  the  extension  before
+ *  executing extension requests
+ */
+void
 display_init_extensions(void)
 {
   globalconf.extensions.composite = xcb_get_extension_data(globalconf.connection,
@@ -59,35 +76,26 @@ display_init_extensions(void)
   globalconf.extensions.damage = xcb_get_extension_data(globalconf.connection,
 							&xcb_damage_id);
 
+  if(!globalconf.extensions.composite ||
+     !globalconf.extensions.composite->present)
+    fatal("No Composite extension");
+
   debug("Composite: major_opcode=%ju",
 	(uintmax_t) globalconf.extensions.composite->major_opcode);
+
+  if(!globalconf.extensions.xfixes ||
+     !globalconf.extensions.xfixes->present)
+    fatal("No XFixes extension");
 
   debug("XFixes: major_opcode=%ju",
 	(uintmax_t) globalconf.extensions.xfixes->major_opcode);
 
-  debug("Damage: major_opcode=%ju",
-	(uintmax_t) globalconf.extensions.damage->major_opcode);
-
-  if(!globalconf.extensions.composite ||
-     !globalconf.extensions.composite->present)
-    {
-      fatal("No Composite extension");
-      return false;
-    }
-
-  if(!globalconf.extensions.xfixes ||
-     !globalconf.extensions.xfixes->present)
-    {
-      fatal("No XFixes extension");
-      return false;
-    }
-
   if(!globalconf.extensions.damage ||
      !globalconf.extensions.damage->present)
-    {
-      fatal("No Damage extension");
-      return false;
-    }
+    fatal("No Damage extension");
+
+  debug("Damage: major_opcode=%ju",
+	(uintmax_t) globalconf.extensions.damage->major_opcode);
 
   _init_extensions_cookies.composite =
     xcb_composite_query_version_unchecked(globalconf.connection,
@@ -103,11 +111,14 @@ display_init_extensions(void)
     xcb_xfixes_query_version_unchecked(globalconf.connection,
 				       XCB_XFIXES_MAJOR_VERSION,
 				       XCB_XFIXES_MINOR_VERSION);
-
-  return true;
 }
 
-bool
+/** Get the  replies of the QueryVersion requests  previously sent and
+ * check if their version actually matched the versions needed
+ *
+ * \see display_init_extensions
+ */
+void
 display_init_extensions_finalise(void)
 {
   assert(_init_extensions_cookies.composite.sequence);
@@ -117,13 +128,11 @@ display_init_extensions_finalise(void)
 				      _init_extensions_cookies.composite,
 				      NULL);
 
-  /* NameWindowPixmap support is needed */
+  /* Need NameWindowPixmap support introduced in version >= 0.2 */
   if(!composite_version_reply || composite_version_reply->minor_version < 2)
     {
       free(composite_version_reply);
-
       fatal("Need Composite extension 0.2 at least");
-      return false;
     }
 
   free(composite_version_reply);
@@ -136,10 +145,7 @@ display_init_extensions_finalise(void)
 				   NULL);
 
   if(!damage_version_reply)
-    {
-      fatal("Can't initialise Damage extension");
-      return false;
-    }
+    fatal("Can't initialise Damage extension");
 
   free(damage_version_reply);
 
@@ -150,23 +156,24 @@ display_init_extensions_finalise(void)
 				  _init_extensions_cookies.xfixes,
 				  NULL);
 
-  /* Need Region objects support */
+  /* Need Region objects support introduced in version >= 2.0 */
   if(!xfixes_version_reply || xfixes_version_reply->major_version < 2)
     {
       free(xfixes_version_reply);
-
       fatal("Need XFixes extension 2.0 at least");
-      return false;
     }
 
   free(xfixes_version_reply);
-
-  return true;
 }
 
-/* When  changing  the property  of  the  CM  window, it  generates  a
-   PropertyNotify event used  to set the time of  the SetOwner request
-   for _NET_WM_CM_Sn */
+/** Handler for  PropertyNotify event meaningful to  set the timestamp
+ *  (given  in  the PropertyNotify  event  field)  when acquiring  the
+ *  ownership of _NET_WM_CM_Sn using SetOwner request (as specified in
+ *  ICCCM and EWMH)
+ *
+ * \see display_register_cm
+ * \param event The X PropertyNotify event
+ */
 static int
 display_event_set_owner_property(void *data __attribute__((unused)),
 				 xcb_connection_t *c __attribute__((unused)),
@@ -174,14 +181,36 @@ display_event_set_owner_property(void *data __attribute__((unused)),
 {
   debug("Set _NET_WM_CM_Sn ownership");
 
+  /* Set ownership on _NET_WM_CM_Sn giving the Compositing Manager window */
   xcb_ewmh_set_wm_cm_owner(globalconf.connection, globalconf.cm_window,
 			   event->time, 0, 0);
 
+  /* Send request to check whether the ownership succeeded */
   _get_wm_cm_owner_cookie = xcb_ewmh_get_wm_cm_owner_unchecked(globalconf.connection);
 
   return 0;
 }
 
+/** Register  Compositing   Manager,  e.g.   set   ownership  on  EMWH
+ *  _NET_WM_CM_Sn  atom used  to politely  stating that  a Compositing
+ *  Manager is  currently running. Acquiring ownership is  done in the
+ *  following  steps  (ICCCM  explains  the  principles  of  selection
+ *  ownership):
+ *
+ *  0/ Check  whether this  selection  is  already  owned by  another
+ *     program
+ *
+ *  1/ Create  a Window whose  identifier is set as  the _NET_WM_CM_Sn
+ *     value
+ *
+ *  2/ Change a Window  property to  generate a  PropertyNotify event
+ *     used as the timestamp  to SetOwner request as multiple attempts
+ *     may be sent at the same time
+ *
+ *  3/ Send SetOwner request
+ *
+ *  4/ Check whether the SetOwner request succeeds
+ */
 void
 display_register_cm(void)
 {
@@ -207,6 +236,12 @@ display_register_cm(void)
 		      strlen(PACKAGE_NAME), PACKAGE_NAME);
 }
 
+/** Finish  acquiring  ownership  by  checking  whether  the  SetOwner
+ *  request succeeded
+ *
+ * \see display_register_cm
+ * \return bool true if it succeeded, false otherwise
+ */
 bool
 display_register_cm_finalise(void)
 {
@@ -220,6 +255,10 @@ display_register_cm_finalise(void)
 	  wm_cm_owner_win == globalconf.cm_window);
 }
 
+/** Redirect all  the windows to  the off-screen buffer  starting from
+ *  the  root window  and change  root window  attributes to  make the
+ *  server reporting meaningful events
+ */
 void
 display_init_redirect(void)
 {
@@ -241,6 +280,9 @@ display_init_redirect(void)
 			       XCB_CW_EVENT_MASK, &select_input_val);
 }
 
+/** Finish  redirection by  adding  all the  existing  windows in  the
+ *  hierarchy
+ */
 void
 display_init_redirect_finalise(void)
 {
@@ -252,10 +294,9 @@ display_init_redirect_finalise(void)
 			 _query_tree_cookie,
 			 NULL);
 
-  /* Ignore the CM window which is the topmost one */
+  /* Add all these windows excluding the root window of course */
   window_add_all(xcb_query_tree_children_length(query_tree_reply),
 		 xcb_query_tree_children(query_tree_reply));
 
   free(query_tree_reply);
 }
-

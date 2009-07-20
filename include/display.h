@@ -25,8 +25,8 @@
 
 void display_init_event_handlers(void);
 
-bool display_init_extensions(void);
-bool display_init_extensions_finalise(void);
+void display_init_extensions(void);
+void display_init_extensions_finalise(void);
 
 void display_register_cm(void);
 bool display_register_cm_finalise(void);
