@@ -379,9 +379,6 @@ render_paint_all(void)
 	  window_alpha_picture = XCB_NONE;
 	}
 
-      /* TODO: Add here otherwise moving a window is quite slow */
-      xcb_aux_sync(globalconf.connection);
-
       xcb_render_composite(globalconf.connection,
 			   render_composite_op,
 			   window->picture, window_alpha_picture, globalconf.root_buffer_picture,

@@ -16,10 +16,6 @@
  *  <http://www.gnu.org/licenses/>.
  */
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <stdbool.h>
-#include <error.h>
 #include <unistd.h>
 #include <signal.h>
 #include <string.h>
@@ -39,10 +35,9 @@
 #include "atoms.h"
 #include "util.h"
 
-#include "experiment.h"
-
 conf_t globalconf;
 
+/** Perform cleanup on normal exit */
 static void
 exit_cleanup(void)
 {
@@ -61,10 +56,16 @@ exit_cleanup(void)
   xcb_disconnect(globalconf.connection);
 }
 
+/** Perform  cleanup when  a  signal (SIGHUP,  SIGINT  or SIGTERM)  is
+ *  received
+ */
 static void
 exit_on_signal(int sig __attribute__((unused)))
 {
   exit_cleanup();
+
+  /* Exit  the  program without  calling  the  function register  with
+     atexit() */
   _exit(EXIT_FAILURE);
 }
 
@@ -185,12 +186,13 @@ main(void)
 
   xcb_generic_event_t *event;
 
+  /* Flush existing  requests before  the loop as  DamageNotify events
+     may have been received in the meantime */
+  xcb_flush(globalconf.connection);
+
   /* Main event and error loop */
   do
     {
-      /* Flush existing requests before blocking */
-      xcb_flush(globalconf.connection);
-
       /* Block until an event is received */
       event = xcb_wait_for_event(globalconf.connection);
 
@@ -207,7 +209,10 @@ main(void)
 
       /* Now paint the windows */
       if(globalconf.do_repaint)
-	render_paint_all();
+	{
+	  render_paint_all();
+	  xcb_aux_sync(globalconf.connection);
+	}
     }
   while(true);
 
