@@ -30,6 +30,12 @@
 #include "util.h"
 #include "render.h"
 
+/** Append a window to the end  of the windows list which is organized
+ *  from the bottommost to the topmost window
+ *
+ * \param new_window_id The new Window X identifier
+ * \return The newly allocated window object
+ */
 static window_t *
 window_list_append(const xcb_window_t new_window_id)
 {
@@ -37,11 +43,12 @@ window_list_append(const xcb_window_t new_window_id)
 
   new_window->id = new_window_id;
 
+  /* If the windows list is empty */
   if(globalconf.windows == NULL)
     globalconf.windows = new_window;
   else
     {
-      /* Append to the end of the list */
+      /* Otherwise, append to the end of the list */
       window_t *window_tail;
       for(window_tail = globalconf.windows; window_tail->next;
 	  window_tail = window_tail->next)
@@ -53,18 +60,28 @@ window_list_append(const xcb_window_t new_window_id)
   return new_window;
 }
 
-void
-window_free_pixmap(window_t *window)
+/** Get the window object associated with the given Window XID
+ *
+ * \param window_id The Window XID to look for
+ * \return The window object or NULL
+ */
+window_t *
+window_list_get(const xcb_window_t window_id)
 {
-  if(window->pixmap)
-    {
-      xcb_free_pixmap(globalconf.connection, window->pixmap);
-      window->pixmap = XCB_NONE;
+  window_t *window;
 
-      render_free_picture(&window->picture);
-    }
+  for(window = globalconf.windows;
+      window != NULL && window->id != window_id;
+      window = window->next)
+    ;
+
+  return window;
 }
 
+/** Free a given window and its associated resources
+ *
+ * \param window The window object to be freed
+ */
 static void
 window_list_free_window(window_t *window)
 {
@@ -82,6 +99,10 @@ window_list_free_window(window_t *window)
   free(window);
 }
 
+/** Remove the given window object from the windows list
+ *
+ * \param window_delete
+ */
 void
 window_list_remove_window(window_t *window_delete)
 {
@@ -105,6 +126,7 @@ window_list_remove_window(window_t *window_delete)
 	}
 }
 
+/** Free all resources allocated for the windows list */
 void
 window_list_cleanup(void)
 {
@@ -119,37 +141,55 @@ window_list_cleanup(void)
     }
 }
 
-window_t *
-window_list_get(const xcb_window_t window_id)
+/** Free  a  Window Pixmap  which  has  been  previously allocated  by
+ *  NameWindowPixmap Composite request
+ *
+ * \param window The window object to free the Pixmap from
+ */
+void
+window_free_pixmap(window_t *window)
 {
-  window_t *window;
+  if(window->pixmap)
+    {
+      xcb_free_pixmap(globalconf.connection, window->pixmap);
+      window->pixmap = XCB_NONE;
 
-  for(window = globalconf.windows;
-      window != NULL && window->id != window_id;
-      window = window->next)
-    ;
-
-  return window;
+      /* If the Pixmap  is freed, then free its  associated Picture as
+	 it does not make sense to keep it */
+      render_free_picture(&window->picture);
+    }
 }
 
+/** Send the request to get the _NET_WM_WINDOW_OPACITY Atom of a given
+ *  window     as    EWMH     specification     does    not     define
+ *  _NET_WM_WINDOW_OPACITY
+ *
+ * \param window_id The Window XID
+ * \return The GetProperty cookie associated with the request
+ */
 xcb_get_property_cookie_t
 window_get_opacity_property(xcb_window_t window_id)
 {
-  debug("window_get_opacity_property: window: %x", window_id);
-
   return xcb_get_property_unchecked(globalconf.connection, 0, window_id,
 				    _NET_WM_WINDOW_OPACITY, CARDINAL, 0, 1);
 }
 
+/** Get the  reply of the previously  sent request to  get the opacity
+ *  property of a Window
+ *
+ * \param cookie The GetProperty request cookie
+ * \return The opacity value as 32-bits unsigned integer
+ */
 uint32_t
 window_get_opacity_property_reply(xcb_get_property_cookie_t cookie)
 {
-  xcb_get_property_reply_t *reply = xcb_get_property_reply(globalconf.connection,
-							   cookie,
-							   NULL);
+  xcb_get_property_reply_t *reply =
+    xcb_get_property_reply(globalconf.connection, cookie, NULL);
 
   uint32_t opacity;
 
+  /* If the reply is not valid  or there was an error, then the window
+     is considered as opaque */
   if(!reply || reply->type != CARDINAL || reply->format != 32 ||
      !xcb_get_property_value_length(reply))
     opacity = OPACITY_OPAQUE;
@@ -162,6 +202,12 @@ window_get_opacity_property_reply(xcb_get_property_cookie_t cookie)
   return opacity;
 }
 
+/** Send   ChangeWindowAttributes  request   in  order   to   get  the
+ *  PropertyNotify   events  for  opacity,   otherwise  we   lose  the
+ *  transparency messages
+ *
+ * \param window The window object
+ */
 void
 window_register_property_notify(window_t *window)
 {
@@ -172,11 +218,12 @@ window_register_property_notify(window_t *window)
 			       XCB_CW_EVENT_MASK, &select_input_val);
 }
 
-/* TODO! */
+/* TODO: Need to figure out a better way to do (not thread-safe!) */
 static xcb_get_property_cookie_t root_background_cookies[2];
 
 /* Get  the root window  background pixmap  whose identifier  is given
-   usually by either XROOTPMAP_ID or _XSETROOT_ID */
+ * usually by either XROOTPMAP_ID or _XSETROOT_ID Property Atoms
+ */
 void
 window_get_root_background_pixmap(void)
 {
@@ -193,6 +240,11 @@ window_get_root_background_pixmap(void)
     }
 }
 
+/** Get the  first Property  whose reply is  valid and get  the stored
+ *  Pixmap
+ *
+ * \return The root window background image Pixmap, otherwise None
+ */
 xcb_pixmap_t
 window_get_root_background_pixmap_finalise(void)
 {
@@ -228,6 +280,11 @@ window_get_root_background_pixmap_finalise(void)
   return root_background_pixmap;
 }
 
+/** Create a new Pixmap for the  root Window background if there is no
+ *  image set
+ *
+ * \return The new Pixmap
+ */
 xcb_pixmap_t
 window_new_root_background_pixmap(void)
 {
@@ -239,6 +296,14 @@ window_new_root_background_pixmap(void)
   return root_pixmap;
 }
 
+/** Get  the Pixmap  associated with  the  given Window  by sending  a
+ *  NameWindowPixmap Composite  request. Must be careful  when to free
+ *  this Pixmap, because  a new one is generated  each time the window
+ *  is mapped or resized
+ *
+ * \param window The window object
+ * \return The Pixmap associated with the Window
+ */
 xcb_pixmap_t
 window_get_pixmap(window_t *window)
 {
@@ -252,16 +317,30 @@ window_get_pixmap(window_t *window)
   return pixmap;
 }
 
+/** Send requests when a window is added (CreateNotify or on startup),
+ *  e.g. GetWindowAttributes request
+ *
+ * \param window_id The Window XID
+ * \return The cookie associated with the request
+ */
 static xcb_get_window_attributes_cookie_t
-window_add_xrequests(const xcb_window_t window_id)
+window_add_requests(const xcb_window_t window_id)
 {
   return xcb_get_window_attributes_unchecked(globalconf.connection,
 					     window_id);
 }
 
+/** Get  the GetWindowAttributes  reply and  also associated  a Damage
+ *  object  to it and  set the  attributes field  of the  given window
+ *  object
+ *
+ * \param window The window object
+ * \param attributes_cookie The cookie associated with the GetWindowAttributes request
+ * \return The GetWindowAttributes reply
+ */
 static xcb_get_window_attributes_reply_t *
-window_add_xrequests_finalise(window_t * const window,
-			      const xcb_get_window_attributes_cookie_t attributes_cookie)
+window_add_requests_finalise(window_t * const window,
+			     const xcb_get_window_attributes_cookie_t attributes_cookie)
 {
   window->attributes = xcb_get_window_attributes_reply(globalconf.connection,
 						       attributes_cookie,
@@ -273,6 +352,8 @@ window_add_xrequests_finalise(window_t * const window,
       return NULL;
     }
 
+  /* No  need to create  a Damage  object for  an InputOnly  window as
+     nothing will never be painted in it */
   if(window->attributes->_class == XCB_WINDOW_CLASS_INPUT_ONLY)
     window->damage = XCB_NONE;
   else
@@ -286,6 +367,13 @@ window_add_xrequests_finalise(window_t * const window,
   return window->attributes;
 }
 
+/** Add  all   the  given  windows  and   get  information  (geometry,
+ *  attributes and opacity). This function is called on startup to add
+ *  existing windows
+ *
+ * \param nwindows The number of windows to add
+ * \param new_windows_id The Windows XIDs
+ */
 void
 window_add_all(const int nwindows,
 	       const xcb_window_t * const new_windows_id)
@@ -300,7 +388,7 @@ window_add_all(const int nwindows,
 	continue;
 
       attributes_cookies[nwindow] =
-	window_add_xrequests(new_windows_id[nwindow]);
+	window_add_requests(new_windows_id[nwindow]);
 
       /* Only  necessary  when adding  all  the  windows, otherwise  a
 	 window  is only  added on  CreateNotify event  which actually
@@ -323,7 +411,7 @@ window_add_all(const int nwindows,
       if(new_windows_id[nwindow] == globalconf.cm_window)
 	continue;
 
-      if(!window_add_xrequests_finalise(new_windows[nwindow],
+      if(!window_add_requests_finalise(new_windows[nwindow],
 					attributes_cookies[nwindow]))
 	{
 	  window_list_remove_window(new_windows[nwindow]);
@@ -342,6 +430,7 @@ window_add_all(const int nwindows,
 			       NULL);
     }
 
+  /* Now process the opacity replies */
   for(int nwindow = 0; nwindow < nwindows; ++nwindow)
     if(opacity_cookies[nwindow].sequence)
       {
@@ -352,27 +441,41 @@ window_add_all(const int nwindows,
       }
 }
 
+/** Add  the  given   window  to  the  windows  list   and  also  send
+ *  GetWindowAttributes request  (no need  to split this  function for
+ *  now)
+ *
+ * \param new_window_id The new Window XID
+ * \return The new window object
+ */
 window_t *
 window_add_one(const xcb_window_t new_window_id)
 {
-  xcb_get_window_attributes_cookie_t attributes_cookie;
-
-  attributes_cookie = window_add_xrequests(new_window_id);
+  xcb_get_window_attributes_cookie_t attributes_cookie =
+    window_add_requests(new_window_id);
 
   window_t *new_window = window_list_append(new_window_id);
+  new_window->opacity = OPACITY_OPAQUE;
 
-  if(!window_add_xrequests_finalise(new_window,
+  /* The request should never fail... */
+  if(!window_add_requests_finalise(new_window,
 				    attributes_cookie))
     {
       window_list_remove_window(new_window);
       return NULL;
     }
 
-  new_window->opacity = OPACITY_OPAQUE;
-
   return new_window;
 }
 
+/** Restack  the given  window object  by placing  it below  the given
+ *  window  (e.g. it  simply inserts  before the  given  window object
+ *  _before_ the new above window)
+ *
+ * \param window The window object to restack
+ * \param window_new_above_id The window which is going to above
+ * \todo optimization
+ */
 void
 window_restack(window_t *window, xcb_window_t window_new_above_id)
 {
