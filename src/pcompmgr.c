@@ -19,6 +19,7 @@
 #include <unistd.h>
 #include <signal.h>
 #include <string.h>
+#include <dlfcn.h>
 
 #include <xcb/xcb.h>
 #include <xcb/composite.h>
@@ -31,9 +32,9 @@
 #include "structs.h"
 #include "display.h"
 #include "event.h"
-#include "render.h"
 #include "atoms.h"
 #include "util.h"
+#include "plugin.h"
 
 conf_t globalconf;
 
@@ -50,8 +51,9 @@ exit_cleanup(void)
   /* Destroy the linked-list of windows */
   window_list_cleanup();
 
-  /* Free render-related resources */
-  render_cleanup();
+  /* Free resources related to the rendering backend */
+  if(globalconf.rendering_dlhandle != NULL)
+    dlclose(globalconf.rendering_dlhandle);
 
   xcb_disconnect(globalconf.connection);
 }
@@ -111,7 +113,8 @@ main(void)
   event_init_start_handlers();
 
   /* Pre-initialisation of the rendering backend */
-  render_preinit();
+  if(!rendering_backend_load())
+    fatal("Can't initialise rendering backend");
 
   /* Get replies for EWMH atoms initialisation */
   if(!atoms_init_finalise())
@@ -128,7 +131,7 @@ main(void)
   /* Initialise   extensions   based   on   the  cache   and   perform
      initialisation of the rendering backend */
   display_init_extensions();
-  if(!render_init())
+  if(!(*globalconf.rendering->init)())
     return EXIT_FAILURE;
 
   /* Check ownership for WM_CM_Sn before actually claiming it (ICCCM) */
@@ -148,7 +151,7 @@ main(void)
   /* Check  extensions  version   and  finish  initialisation  of  the
      rendering backend */
   display_init_extensions_finalise();
-  if(!render_init_finalise())
+  if(!(*globalconf.rendering->init_finalise)())
     return EXIT_FAILURE;
 
   /* Validate  errors   and  get  PropertyNotify   needed  to  acquire
@@ -210,7 +213,7 @@ main(void)
       /* Now paint the windows */
       if(globalconf.do_repaint)
 	{
-	  render_paint_all();
+	  window_paint_all();
 	  xcb_aux_sync(globalconf.connection);
 	}
     }

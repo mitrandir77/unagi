@@ -13,4 +13,8 @@ Makefile
 Makefile.in
 *.o
 .deps
+.libs
 pcompmgr
+*.lo
+*.la
+libtool

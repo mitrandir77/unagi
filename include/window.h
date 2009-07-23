@@ -35,10 +35,7 @@ typedef struct _window_t
   xcb_damage_damage_t damage;
   bool damaged;
   xcb_pixmap_t pixmap;
-
-  xcb_render_picture_t picture;
-  xcb_render_picture_t alpha_picture;
-
+  void *rendering;
   struct _window_t *next;
 } window_t;
 
@@ -58,5 +55,6 @@ xcb_pixmap_t window_get_pixmap(window_t *);
 void window_add_all(const int nwindows, const xcb_window_t *);
 window_t *window_add_one(const xcb_window_t);
 void window_restack(window_t *, xcb_window_t);
+void window_paint_all(void);
 
 #endif

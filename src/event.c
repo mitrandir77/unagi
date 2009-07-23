@@ -23,7 +23,6 @@
 #include "event.h"
 #include "structs.h"
 #include "util.h"
-#include "render.h"
 #include "window.h"
 #include "atoms.h"
 
@@ -117,8 +116,8 @@ static const char *
 error_get_request_label(const uint8_t request_major_code,
 			const uint16_t request_minor_code)
 {
-  if(render_is_render_request(request_major_code))
-    return render_error_get_request_label(request_minor_code);
+  if((*globalconf.rendering->is_request)(request_major_code))
+    return (*globalconf.rendering->get_request_label)(request_minor_code);
 
   else if(request_major_code == globalconf.extensions.composite->major_opcode)
     return ERROR_EXTENSION_GET_REQUEST_LABEL(composite_request_label,
@@ -164,7 +163,7 @@ event_handle_error(void *data __attribute__((unused)),
   const uint8_t damage_bad_damage =
     globalconf.extensions.damage->first_error + XCB_DAMAGE_BAD_DAMAGE;
 
-  const char *error_label = render_error_get_error_label(error->error_code);
+  const char *error_label = (*globalconf.rendering->get_error_label)(error->error_code);
 
   if(!error_label)
     {
@@ -324,8 +323,7 @@ event_handle_configure_notify(void *data __attribute__((unused)),
       globalconf.screen->width_in_pixels = event->width;
       globalconf.screen->height_in_pixels = event->height;
 
-      render_free_picture(&globalconf.root_background_picture);
-      render_init_root_background();
+      (*globalconf.rendering->reset_background)();
 
       return 0;
     }
@@ -545,8 +543,7 @@ event_handle_property_notify(void *data __attribute__((unused)),
   /* If the background image has been updated */
   else if(atoms_is_background_atom(event->atom))
     {
-      render_free_picture(&globalconf.root_background_picture);
-      render_init_root_background();
+      (*globalconf.rendering->reset_background)();
 
       /* Force repaint of the entire screen */
       globalconf.do_repaint = true;

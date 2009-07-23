@@ -12,6 +12,8 @@ AM_MAINTAINER_MODE
 AC_PROG_CC
 AC_PROG_CC_C99
 AC_PROG_INSTALL
+AC_LIBTOOL_DLOPEN
+AC_PROG_LIBTOOL
 
 # Checks for libraries
 PKG_CHECK_MODULES(DEPS, [
@@ -21,13 +23,20 @@ PKG_CHECK_MODULES(DEPS, [
 	  xcb-damage
 	  xcb-ewmh
 	  xcb-event
-	  xcb-shape
-	  xcb-renderutil
 	  xcb-aux
 ])
 
 AC_SUBST(DEPS_CFLAGS)
 AC_SUBST(DEPS_LIBS)
+
+PKG_CHECK_MODULES(RENDER_BACKEND, [
+	  xcb-renderutil
+	  xcb-render
+	  xcb-shape
+])
+
+AC_SUBST(RENDER_BACKEND_CFLAGS)
+AC_SUBST(RENDER_BACKEND_LIBS)
 
 # Checks for header files
 AC_CHECK_HEADERS([stdint.h stdlib.h string.h])
@@ -54,10 +63,16 @@ then
    CFLAGS="$CFLAGS -ggdb -O0 -D__DEBUG__"
 fi
 
+# Rendering backends
+renderingdir=$libdir/$PACKAGE_NAME/rendering/
+AC_SUBST(renderingdir)
+CFLAGS="$CFLAGS -DRENDERING_DIR=$renderingdir"
+
 AC_SUBST(CFLAGS)
 
 AC_CONFIG_FILES([Makefile
 	include/Makefile
-	src/Makefile])
+	src/Makefile
+	rendering/Makefile])
 
 AC_OUTPUT

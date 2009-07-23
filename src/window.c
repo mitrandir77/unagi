@@ -28,7 +28,6 @@
 #include "structs.h"
 #include "atoms.h"
 #include "util.h"
-#include "render.h"
 
 /** Append a window to the end  of the windows list which is organized
  *  from the bottommost to the topmost window
@@ -93,6 +92,7 @@ window_list_free_window(window_t *window)
     }
 
   window_free_pixmap(window);
+  (*globalconf.rendering->free_window)(window);
 
   free(window->attributes);
   free(window->geometry);
@@ -156,7 +156,7 @@ window_free_pixmap(window_t *window)
 
       /* If the Pixmap  is freed, then free its  associated Picture as
 	 it does not make sense to keep it */
-      render_free_picture(&window->picture);
+      (*globalconf.rendering->free_window_pixmap)(window);
     }
 }
 
@@ -515,4 +515,39 @@ window_restack(window_t *window, xcb_window_t window_new_above_id)
       window->next = window_below->next;
       window_below->next = window;
     }
+}
+
+void
+window_paint_all(void)
+{
+#if __DEBUG__
+  static uint32_t _paint_all_counter = 0;
+#endif
+  (*globalconf.rendering->paint_background)();
+
+  for(window_t *window = globalconf.windows; window; window = window->next)
+    {
+      if(!window->damaged)
+	continue;
+
+      if(!window->geometry ||
+	 window->geometry->x + window->geometry->width < 1 ||
+	 window->geometry->y + window->geometry->height < 1 ||
+	 window->geometry->x >= globalconf.screen->width_in_pixels ||
+	 window->geometry->y >= globalconf.screen->height_in_pixels)
+	{
+	  debug("Ignoring window %jx", (uintmax_t) window->id);
+	  continue;
+	}
+
+      debug("Painting window %jx", (uintmax_t) window->id);
+
+      (*globalconf.rendering->paint_window)(window);
+    }
+
+  (*globalconf.rendering->paint_all)();
+
+#ifdef __DEBUG__
+  debug("COUNT: %ju", (uintmax_t) ++_paint_all_counter);
+#endif
 }

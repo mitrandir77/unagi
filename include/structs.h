@@ -21,9 +21,9 @@
 
 #include <xcb/xcb.h>
 #include <xcb/xcb_event.h>
-#include <xcb/render.h>
 
 #include "window.h"
+#include "plugin.h"
 
 typedef struct _display_extensions_t
 {
@@ -42,12 +42,8 @@ typedef struct _conf_t
   xcb_window_t cm_window;
   window_t *windows;
   bool do_repaint;
-
-  xcb_render_query_pict_formats_reply_t *pict_formats;
-  xcb_render_picture_t root_picture;
-  xcb_render_picture_t root_buffer_picture;
-  xcb_render_picture_t root_background_picture;
-  xcb_render_pictvisual_t *root_pictvisual;
+  void *rendering_dlhandle;
+  rendering_backend_t *rendering;
 } conf_t;
 
 extern conf_t globalconf;

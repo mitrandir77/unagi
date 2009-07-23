@@ -16,7 +16,6 @@
  *  <http://www.gnu.org/licenses/>.
  */
 
-#include <stdio.h>
 #include <stdarg.h>
 
 #include "util.h"
@@ -36,10 +35,12 @@
  * \param fmt Format of the message
  */
 void
-_fatal(const int line, const char *func, const char *fmt, ...)
+_fatal(const bool do_exit, const int line, const char *func, const char *fmt, ...)
 {
   DO_DISPLAY_MESSAGE("FATAL");
-  exit(EXIT_FAILURE);
+
+  if(do_exit)
+    exit(EXIT_FAILURE);
 }
 
 /** Warning message

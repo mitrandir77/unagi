@@ -21,6 +21,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 #ifdef HAVE_SYS_TYPES_H
 # include <sys/types.h>
@@ -29,12 +30,15 @@
 #define ssizeof(foo)            (ssize_t)sizeof(foo)
 #define countof(foo)            (ssizeof(foo) / ssizeof(foo[0]))
 
-#define fatal(string, ...) _fatal(__LINE__,			\
-				  __FUNCTION__,			\
+#define fatal(string, ...) _fatal(true,				\
+				  __LINE__, __FUNCTION__,	\
 				  string, ## __VA_ARGS__)
 
-void _fatal(int, const char *, const char *, ...)
-  __attribute__ ((format(printf, 3, 4)));
+#define fatal_no_exit(string, ...)			\
+  _fatal(false, __LINE__, __FUNCTION__, string, ## __VA_ARGS__)
+
+void _fatal(bool, int, const char *, const char *, ...)         \
+  __attribute__ ((format(printf, 4, 5)));
 
 #define warn(string, ...) _warn(__LINE__,			\
 				__FUNCTION__,			\
