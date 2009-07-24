@@ -16,10 +16,12 @@
  *  <http://www.gnu.org/licenses/>.
  */
 
+#include <stdio.h>
 #include <unistd.h>
 #include <signal.h>
 #include <string.h>
 #include <dlfcn.h>
+#include <getopt.h>
 
 #include <xcb/xcb.h>
 #include <xcb/composite.h>
@@ -29,6 +31,10 @@
 #include <xcb/xcb_aux.h>
 #include <xcb/xcb_event.h>
 
+#include <basedir.h>
+#include <basedir_fs.h>
+#include <confuse.h>
+
 #include "structs.h"
 #include "display.h"
 #include "event.h"
@@ -37,6 +43,96 @@
 #include "plugin.h"
 
 conf_t globalconf;
+
+static bool
+parse_configuration_file(FILE *config_fp)
+{
+  cfg_opt_t opts[] = {
+    CFG_STR("rendering", "render", CFGF_NONE),
+    CFG_END()
+  };
+
+  globalconf.cfg = cfg_init(opts, CFGF_NONE);
+  if(cfg_parse_fp(globalconf.cfg, config_fp) == CFG_PARSE_ERROR)
+    return false;
+
+  return true;
+}
+
+static inline void
+display_help(void)
+{
+  printf("Usage: " PACKAGE_NAME "[options]\n\
+  -h, --help                show help\n\
+  -v, --version             show version\n\
+  -c, --config FILE         configuration file path\n\
+  -r, --rendering-path PATH rendering backend path\n");
+}
+
+static void
+parse_command_line_parameters(int argc, char **argv)
+{
+  const struct option long_options[] = {
+    { "help", 0, NULL, 'h' },
+    { "version", 0, NULL, 'v' },
+    { "config", 1, NULL, 'c' },
+    { "rendering-path", 0, NULL, 'r' },
+    { NULL, 0, NULL, 0 }
+  };
+
+  int opt;
+  FILE *config_fp = NULL;
+
+  while((opt = getopt_long(argc, argv, "vhc:r:",
+			   long_options, NULL)) != -1)
+    {
+      switch(opt)
+	{
+	case 'v':
+	  printf(VERSION);
+	  exit(EXIT_SUCCESS);
+	  break;
+	case 'h':
+	  display_help();
+	  exit(EXIT_SUCCESS);
+	  break;
+	case 'c':
+	  if(!strlen(optarg) || !(config_fp = fopen(optarg, "r")))
+	    {
+	      display_help();
+	      exit(EXIT_FAILURE);
+	    }
+	  break;
+	case 'r':
+	  globalconf.rendering_dir = strdup(optarg);
+	  break;
+	}
+    }
+
+  /* Get the configuration file */
+  if(!config_fp)
+    {
+      xdgHandle xdg;
+      xdgInitHandle(&xdg);
+      config_fp = xdgConfigOpen(PACKAGE_NAME ".conf", "r", &xdg);
+      xdgWipeHandle(&xdg);
+
+      if(!config_fp)
+	fatal("Can't open configuration file");
+    }
+
+  if(!parse_configuration_file(config_fp))
+    {
+      fclose(config_fp);
+      fatal("Can't parse configuration file");
+    }
+
+  fclose(config_fp);
+
+  /* Get the rendering backend path */
+  if(!globalconf.rendering_dir)
+    globalconf.rendering_dir = strdup(RENDERING_DIR);
+}
 
 /** Perform cleanup on normal exit */
 static void
@@ -55,6 +151,9 @@ exit_cleanup(void)
   if(globalconf.rendering_dlhandle != NULL)
     dlclose(globalconf.rendering_dlhandle);
 
+  cfg_free(globalconf.cfg);
+  free(globalconf.rendering_dir);
+
   xcb_disconnect(globalconf.connection);
 }
 
@@ -72,7 +171,7 @@ exit_on_signal(int sig __attribute__((unused)))
 }
 
 int
-main(void)
+main(int argc, char **argv)
 {
   memset(&globalconf, 0, sizeof(globalconf));
 
@@ -102,6 +201,8 @@ main(void)
 
   /* Send requests for EWMH atoms initialisation */
   atoms_init();
+
+  parse_command_line_parameters(argc, argv);
 
   /* Prefetch the extensions data */
   xcb_prefetch_extension_data(globalconf.connection, &xcb_composite_id);

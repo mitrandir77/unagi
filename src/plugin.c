@@ -17,12 +17,11 @@
  */
 
 #include <dlfcn.h>
+#include <string.h>
 
 #include "plugin.h"
 #include "structs.h"
 #include "util.h"
-
-#define DEFAULT_RENDERING_BACKEND "/src/msc/dissertation/src/pcompmgr/rendering/.libs/render.so"
 
 /** Load the  default backend or fallback  on another one  if there is
  *  any error
@@ -35,8 +34,20 @@ rendering_backend_load(void)
   /* Clear any existing error */
   dlerror();
 
+  /* Get the rendering backend from the configuration file */
+  const char *rendering_name = cfg_getstr(globalconf.cfg, "rendering");
+
+  /* Get the rendering backend path */
+  const size_t rendering_path_len = strlen(rendering_name) +
+    strlen(globalconf.rendering_dir) + sizeof(".so");
+
+  char rendering_path[rendering_path_len];
+
+  snprintf(rendering_path, rendering_path_len, "%s%s.so",
+	   globalconf.rendering_dir, rendering_name);
+
   char *error;
-  globalconf.rendering_dlhandle = dlopen(DEFAULT_RENDERING_BACKEND, RTLD_LAZY);
+  globalconf.rendering_dlhandle = dlopen(rendering_path, RTLD_LAZY);
 
   if((error = dlerror()))
     {

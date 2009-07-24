@@ -22,6 +22,8 @@
 #include <xcb/xcb.h>
 #include <xcb/xcb_event.h>
 
+#include <confuse.h>
+
 #include "window.h"
 #include "plugin.h"
 
@@ -42,8 +44,10 @@ typedef struct _conf_t
   xcb_window_t cm_window;
   window_t *windows;
   bool do_repaint;
+  char *rendering_dir;
   void *rendering_dlhandle;
   rendering_backend_t *rendering;
+  cfg_t *cfg;
 } conf_t;
 
 extern conf_t globalconf;

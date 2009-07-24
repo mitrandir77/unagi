@@ -17,6 +17,9 @@ AC_PROG_LIBTOOL
 
 # Checks for libraries
 PKG_CHECK_MODULES(DEPS, [
+	  libxdg-basedir
+	  libconfuse
+
 	  xcb >= 1.4
 	  xcb-composite
 	  xcb-xfixes
@@ -50,8 +53,13 @@ AC_C_INLINE
 # Checks for library functions
 AC_FUNC_ERROR_AT_LINE
 
+# Rendering backends
+renderingdir=$libdir/$PACKAGE_NAME/rendering/
+AC_SUBST(renderingdir)
+CFLAGS="$CFLAGS -DRENDERING_DIR='\"$renderingdir\"'"
+
 # Customise tests
-CFLAGS="-Werror -Wall -Wextra -Wunused-parameter -Wconversion -Wshadow -Wmissing-prototypes"
+CFLAGS="$CFLAGS -Werror -Wall -Wextra -Wunused-parameter -Wconversion -Wshadow -Wmissing-prototypes"
 
 AC_ARG_ENABLE(debug,
         [  --enable-debug          enter debugging mode],
@@ -63,10 +71,14 @@ then
    CFLAGS="$CFLAGS -ggdb -O0 -D__DEBUG__"
 fi
 
-# Rendering backends
-renderingdir=$libdir/$PACKAGE_NAME/rendering/
-AC_SUBST(renderingdir)
-CFLAGS="$CFLAGS -DRENDERING_DIR=$renderingdir"
+# Support   XDG   base   directory   specification  to   install   the
+# configuration file
+if test -z "$XDG_CONFIG_DIR"
+then
+	XDG_CONFIG_DIR=$sysconfdir/xdg
+fi
+
+AC_SUBST(XDG_CONFIG_DIR)
 
 AC_SUBST(CFLAGS)
 
