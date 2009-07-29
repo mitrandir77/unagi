@@ -58,6 +58,11 @@ renderingdir=$libdir/$PACKAGE_NAME/rendering/
 AC_SUBST(renderingdir)
 CFLAGS="$CFLAGS -DRENDERING_DIR='\"$renderingdir\"'"
 
+# Plugins
+pluginsdir=$libdir/$PACKAGE_NAME/plugins/
+AC_SUBST(pluginsdir)
+CFLAGS="$CFLAGS -DPLUGINS_DIR='\"$pluginsdir\"'"
+
 # Customise tests
 CFLAGS="$CFLAGS -Werror -Wall -Wextra -Wunused-parameter -Wconversion -Wshadow -Wmissing-prototypes"
 
@@ -85,6 +90,7 @@ AC_SUBST(CFLAGS)
 AC_CONFIG_FILES([Makefile
 	include/Makefile
 	src/Makefile
-	rendering/Makefile])
+	rendering/Makefile
+	plugins/Makefile])
 
 AC_OUTPUT

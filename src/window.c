@@ -160,48 +160,6 @@ window_free_pixmap(window_t *window)
     }
 }
 
-/** Send the request to get the _NET_WM_WINDOW_OPACITY Atom of a given
- *  window     as    EWMH     specification     does    not     define
- *  _NET_WM_WINDOW_OPACITY
- *
- * \param window_id The Window XID
- * \return The GetProperty cookie associated with the request
- */
-xcb_get_property_cookie_t
-window_get_opacity_property(xcb_window_t window_id)
-{
-  return xcb_get_property_unchecked(globalconf.connection, 0, window_id,
-				    _NET_WM_WINDOW_OPACITY, CARDINAL, 0, 1);
-}
-
-/** Get the  reply of the previously  sent request to  get the opacity
- *  property of a Window
- *
- * \param cookie The GetProperty request cookie
- * \return The opacity value as 32-bits unsigned integer
- */
-uint32_t
-window_get_opacity_property_reply(xcb_get_property_cookie_t cookie)
-{
-  xcb_get_property_reply_t *reply =
-    xcb_get_property_reply(globalconf.connection, cookie, NULL);
-
-  uint32_t opacity;
-
-  /* If the reply is not valid  or there was an error, then the window
-     is considered as opaque */
-  if(!reply || reply->type != CARDINAL || reply->format != 32 ||
-     !xcb_get_property_value_length(reply))
-    opacity = OPACITY_OPAQUE;
-  else
-    opacity = *((uint32_t *) xcb_get_property_value(reply));
-
-  debug("window_get_opacity_property_reply: opacity: %x", opacity);
-
-  free(reply);
-  return opacity;
-}
-
 /** Send   ChangeWindowAttributes  request   in  order   to   get  the
  *  PropertyNotify   events  for  opacity,   otherwise  we   lose  the
  *  transparency messages
@@ -367,7 +325,7 @@ window_add_requests_finalise(window_t * const window,
   return window->attributes;
 }
 
-/** Add  all   the  given  windows  and   get  information  (geometry,
+/** Manage  all  existing   windows  and  get  information  (geometry,
  *  attributes and opacity). This function is called on startup to add
  *  existing windows
  *
@@ -375,8 +333,8 @@ window_add_requests_finalise(window_t * const window,
  * \param new_windows_id The Windows XIDs
  */
 void
-window_add_all(const int nwindows,
-	       const xcb_window_t * const new_windows_id)
+window_manage_existing(const int nwindows,
+		       const xcb_window_t * const new_windows_id)
 {
   xcb_get_window_attributes_cookie_t attributes_cookies[nwindows];
   xcb_get_geometry_cookie_t geometry_cookies[nwindows];
@@ -402,9 +360,6 @@ window_add_all(const int nwindows,
   for(int nwindow = 0; nwindow < nwindows; ++nwindow)
     new_windows[nwindow] = window_list_append(new_windows_id[nwindow]);
 
-  xcb_get_property_cookie_t opacity_cookies[nwindows];
-  memset(opacity_cookies, 0, sizeof(xcb_get_property_cookie_t) * (size_t) nwindows);
-
   for(int nwindow = 0; nwindow < nwindows; ++nwindow)
     {
       /* Ignore the CM window */
@@ -418,11 +373,11 @@ window_add_all(const int nwindows,
 	  continue;
 	}
 
-      /* The  opacity property is  only meaninful  when the  window is
+      /* The opacity  property is only  meaningful when the  window is
 	 mapped, because when the window is unmapped, we don't receive
 	 PropertyNotify */
       if(new_windows[nwindow]->attributes->map_state == XCB_MAP_STATE_VIEWABLE)
-	opacity_cookies[nwindow] = window_get_opacity_property(new_windows_id[nwindow]);
+	window_register_property_notify(new_windows[nwindow]);
 
       new_windows[nwindow]->geometry =
 	xcb_get_geometry_reply(globalconf.connection,
@@ -430,15 +385,9 @@ window_add_all(const int nwindows,
 			       NULL);
     }
 
-  /* Now process the opacity replies */
-  for(int nwindow = 0; nwindow < nwindows; ++nwindow)
-    if(opacity_cookies[nwindow].sequence)
-      {
-	new_windows[nwindow]->opacity =
-	  window_get_opacity_property_reply(opacity_cookies[nwindow]);
-
-	window_register_property_notify(new_windows[nwindow]);
-      }
+  for(plugin_t *plugin = globalconf.plugins; plugin; plugin = plugin->next)
+    if(plugin->vtable->window_manage_existing)
+      (*plugin->vtable->window_manage_existing)(nwindows, new_windows);
 }
 
 /** Add  the  given   window  to  the  windows  list   and  also  send
@@ -449,13 +398,12 @@ window_add_all(const int nwindows,
  * \return The new window object
  */
 window_t *
-window_add_one(const xcb_window_t new_window_id)
+window_add(const xcb_window_t new_window_id)
 {
   xcb_get_window_attributes_cookie_t attributes_cookie =
     window_add_requests(new_window_id);
 
   window_t *new_window = window_list_append(new_window_id);
-  new_window->opacity = OPACITY_OPAQUE;
 
   /* The request should never fail... */
   if(!window_add_requests_finalise(new_window,
@@ -541,7 +489,6 @@ window_paint_all(void)
 	}
 
       debug("Painting window %jx", (uintmax_t) window->id);
-
       (*globalconf.rendering->paint_window)(window);
     }
 

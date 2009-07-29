@@ -350,7 +350,7 @@ render_reset_background(void)
  */
 static void
 _render_create_window_alpha_picture(xcb_render_picture_t *alpha_picture,
-				    const uint32_t opacity)
+				    const uint16_t opacity)
 {
   const xcb_pixmap_t pixmap = xcb_generate_id(globalconf.connection);
 
@@ -371,7 +371,7 @@ _render_create_window_alpha_picture(xcb_render_picture_t *alpha_picture,
 
   const xcb_render_color_t color = {
     .red = 0, .green = 0, .blue = 0,
-    .alpha = (uint16_t) (((double) opacity / OPACITY_OPAQUE) * 0xffff)
+    .alpha = opacity
   };
 
   const xcb_rectangle_t rect = { .x = 0, .y = 0, .width = 1, .height = 1 };
@@ -430,20 +430,28 @@ render_paint_window(window_t *window)
   uint8_t render_composite_op;
   xcb_render_picture_t window_alpha_picture;
 
-  if(window->opacity != OPACITY_OPAQUE)
-    {
-      if(!render_window->alpha_picture)
-	_render_create_window_alpha_picture(&render_window->alpha_picture,
-					    window->opacity);
+  {
+    /* Only  the  opacity  plugins  needs  such  hook  ATM,  but  well
+       something more generic will be written if needed */
+    plugin_t *opacity_plugin = plugin_search_by_name("opacity");
+    uint16_t opacity;
 
-      render_composite_op = XCB_RENDER_PICT_OP_OVER;
-      window_alpha_picture = render_window->alpha_picture;
-    }
-  else
-    {
-      render_composite_op = XCB_RENDER_PICT_OP_SRC;
-      window_alpha_picture = XCB_NONE;
-    }
+    if(opacity_plugin && opacity_plugin->vtable->window_get_opacity &&
+       (opacity = (*opacity_plugin->vtable->window_get_opacity)(window)) != UINT16_MAX)
+      {
+	if(!render_window->alpha_picture)
+	  _render_create_window_alpha_picture(&render_window->alpha_picture,
+					      opacity);
+
+	render_composite_op = XCB_RENDER_PICT_OP_OVER;
+	window_alpha_picture = render_window->alpha_picture;
+      }
+    else
+      {
+	render_composite_op = XCB_RENDER_PICT_OP_SRC;
+	window_alpha_picture = XCB_NONE;
+      }
+  }
 
   xcb_render_composite(globalconf.connection,
 		       render_composite_op,
@@ -550,7 +558,7 @@ render_free(void)
 }
 
 /** Structure holding all the functions addresses */
-rendering_backend_t rendering_functions = {
+rendering_t rendering_functions = {
   render_init,
   render_init_finalise,
   render_reset_background,

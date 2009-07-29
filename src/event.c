@@ -262,6 +262,8 @@ event_handle_damage_notify(void *data __attribute__((unused)),
   globalconf.do_repaint = true;
   window->damaged = true;
 
+  PLUGINS_EVENT_HANDLE(event, damage, window);
+
   return 0;
 }
 
@@ -296,6 +298,8 @@ event_handle_circulate_notify(void *data __attribute__((unused)),
 
       window_restack(window, windows_tail->id);
     }
+
+  PLUGINS_EVENT_HANDLE(event, circulate, window);
 
   return 0;
 }
@@ -356,6 +360,8 @@ event_handle_configure_notify(void *data __attribute__((unused)),
   /* Restack the window */
   window_restack(window, event->above_sibling);
 
+  PLUGINS_EVENT_HANDLE(event, configure, window);
+
   return 0;
 }
 
@@ -378,7 +384,7 @@ event_handle_create_notify(void *data __attribute__((unused)),
 
   /* Add  the  new window  whose  identifier  is  given in  the  event
      itself and  */
-  window_t *new_window = window_add_one(event->window);
+  window_t *new_window = window_add(event->window);
   if(!new_window)
     {
       warn("Can't create window %jx", (uintmax_t) event->window);
@@ -393,6 +399,8 @@ event_handle_create_notify(void *data __attribute__((unused)),
   new_window->geometry->width = event->width;
   new_window->geometry->height = event->height;
   new_window->geometry->border_width = event->border_width;
+
+  PLUGINS_EVENT_HANDLE(event, create, new_window);
 
   return 0;
 }
@@ -421,6 +429,8 @@ event_handle_destroy_notify(void *data __attribute__((unused)),
      been freed automatically in the meantime */
   window->damage = XCB_NONE;
 
+  PLUGINS_EVENT_HANDLE(event, destroy, window);
+
   window_list_remove_window(window);
 
   return 0;
@@ -445,13 +455,9 @@ event_handle_map_notify(void *data __attribute__((unused)),
   /* Everytime a window is mapped, a new pixmap is created */
   window_free_pixmap(window);
 
-  /* Get the opacity property  because we don't receive PropertyNotify
-     events while the window is not mapped */
-  xcb_get_property_cookie_t opacity_cookie = window_get_opacity_property(window->id);
-  window_register_property_notify(window);
-  window->opacity = window_get_opacity_property_reply(opacity_cookie);
-
   window->damaged = false;
+
+  PLUGINS_EVENT_HANDLE(event, map, window);
 
   return 0;
 }
@@ -472,13 +478,17 @@ event_handle_reparent_notify(void *data __attribute__((unused)),
 	(uintmax_t) event->event, (uintmax_t) event->window,
 	(uintmax_t) event->parent);
 
+  window_t *window = window_list_get(event->window);
+
   /* Add the window if it is not already managed */ 
   if(event->parent == globalconf.screen->root ||
      !window_list_get(event->window))
-    window_add_one(event->window);
+    window_add(event->window);
   /* Don't manage the window if the parent is not the root window */
   else
-    window_list_remove_window(window_list_get(event->window));
+    window_list_remove_window(window);
+
+  PLUGINS_EVENT_HANDLE(event, reparent, window);
 
   return 0;
 }
@@ -509,6 +519,8 @@ event_handle_unmap_notify(void *data __attribute__((unused)),
   /* The window is not damaged anymore as it is not visible */
   window->damaged = false;
 
+  PLUGINS_EVENT_HANDLE(event, unmap, window);
+
   return 0;
 }
 
@@ -525,29 +537,16 @@ event_handle_property_notify(void *data __attribute__((unused)),
   debug("PropertyNotify: window=%jx, atom=%ju",
 	(uintmax_t) event->window, (uintmax_t) event->atom);
 
-  /* Update the opacity atom if any */
-  if(event->atom == _NET_WM_WINDOW_OPACITY)
-    {
-      const uint32_t opacity =
-	window_get_opacity_property_reply(window_get_opacity_property(event->window));
-
-      window_t *window = window_list_get(event->window);
-
-      if(opacity != window->opacity)
-	{
-	  /* Force redraw of the window as the opacity has changed */
-	  window->damaged = true;
-	  window->opacity = opacity;
-	}
-    }
   /* If the background image has been updated */
-  else if(atoms_is_background_atom(event->atom))
+  if(atoms_is_background_atom(event->atom))
     {
       (*globalconf.rendering->reset_background)();
 
       /* Force repaint of the entire screen */
       globalconf.do_repaint = true;
     }
+
+  PLUGINS_EVENT_HANDLE(event, property, window_list_get(event->window));
 
   return 0;
 }

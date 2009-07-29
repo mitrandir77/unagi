@@ -16,45 +16,28 @@
  *  <http://www.gnu.org/licenses/>.
  */
 
-#ifndef STRUCTS_H
-#define STRUCTS_H
+#include <dlfcn.h>
+#include <stdio.h>
+#include <string.h>
 
-#include <xcb/xcb.h>
-#include <xcb/xcb_event.h>
+#include "plugin_common.h"
 
-#include <confuse.h>
-
-#include "window.h"
-#include "rendering.h"
-#include "plugin.h"
-
-typedef struct _display_extensions_t
+/** Compute  the plugin  location by  concatenating the  directory and
+ *  plugin name and then call dlopen()
+ *
+ * \param dir The plugin directory
+ * \param name The plugin name
+ * \return Handle for the plugin
+ */
+void *
+plugin_common_dlopen(const char *dir, const char *name)
 {
-  const xcb_query_extension_reply_t *composite;
-  const xcb_query_extension_reply_t *xfixes;
-  const xcb_query_extension_reply_t *damage;
-} display_extensions_t;
+  /* Get the length of the plugin filename */
+  const size_t path_len = strlen(name) + strlen(dir) + sizeof(".so");
 
-typedef struct _conf_t
-{
-  xcb_connection_t *connection;
-  int screen_nbr;
-  xcb_screen_t *screen;
-  display_extensions_t extensions;
-  xcb_event_handlers_t evenths;
-  xcb_window_t cm_window;
-  window_t *windows;
-  bool do_repaint;
-  cfg_t *cfg;
+  /* Get the actual plugin filename */
+  char path[path_len];
+  snprintf(path, path_len, "%s%s.so", dir, name);
 
-  char *rendering_dir;
-  void *rendering_dlhandle;
-  rendering_t *rendering;
-
-  char *plugins_dir;
-  plugin_t *plugins;
-} conf_t;
-
-extern conf_t globalconf;
-
-#endif
+  return dlopen(path, RTLD_LAZY);
+}

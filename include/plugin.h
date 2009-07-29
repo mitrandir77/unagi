@@ -16,41 +16,96 @@
  *  <http://www.gnu.org/licenses/>.
  */
 
+/** General Plugins architecture:
+ *  =====================
+ *
+ *  Several plugins  may be loaded at  the same time.   Each plugin is
+ *  defined in a 'plugin_t' structure holding the virtual table of the
+ *  plugin itself ('plugin_vtable_t').
+ *
+ *  Each plugin has  to defined 'plugin_vtable_t plugin_vtable', which
+ *  is  a virtual  table  containing the  plugin  name, general  hooks
+ *  pointer and events hooks pointer ('plugin_events_notify_t').  This
+ *  way, each plugin  can register one or several  hooks, run when the
+ *  main  program receives  an event  notification, by  simply setting
+ *  function pointers in this structure.
+ *
+ *  NOTE: On  startup, the constructor routine  (dlopen()) should only
+ *  allocate memory but not send  any request as this would be usually
+ *  done by 'window_manage_existing' hook.
+ */
+
 #ifndef PLUGIN_H
 #define PLUGIN_H
 
 #include <stdbool.h>
 #include <stdint.h>
 
+#include <xcb/xcb.h>
+#include <xcb/damage.h>
+
 #include "window.h"
 
-/** Functions exported by the rendering backend */
+/** Plugin structure holding all the supported event handlers */
 typedef struct
 {
-  /** Initialisation routine */
-  bool (*init) (void);
-  /** Second step of the initialisation routine */
-  bool (*init_finalise) (void);
-  /** Reset the root Window background */
-  void (*reset_background) (void);
-  /** Paint the root background to the root window */
-  void (*paint_background) (void);
-  /** Paint a given window */
-  void (*paint_window) (window_t *);
-  /** Paint all the windows on the root window */
-  void (*paint_all) (void);
-  /** Check whether the given request is backend-specific */
-  bool (*is_request) (const uint8_t);
-  /** Get the request label of a backend request */
-  const char *(*get_request_label) (const uint16_t);
-  /** Get the error label of a backend error */
-  const char *(*get_error_label) (const uint8_t);
-  /** Free resources associated with a window when the Pixmap is freed */
-  void (*free_window_pixmap) (window_t *);
-  /** Free resources associated with a window */
-  void (*free_window) (window_t *);
-} rendering_backend_t;
+  /** DamageNotify event */
+  void (*damage) (xcb_damage_notify_event_t *, window_t *);
+  /** CirculateNotify event */
+  void (*circulate) (xcb_circulate_notify_event_t *, window_t *);
+  /** ConfigureNotify event */
+  void (*configure) (xcb_configure_notify_event_t *, window_t *);
+  /** CreateNotify event */
+  void (*create) (xcb_create_notify_event_t *, window_t *);
+  /** DestroyNotify event */
+  void (*destroy) (xcb_destroy_notify_event_t *, window_t *);
+  /** MapNotify event */
+  void (*map) (xcb_map_notify_event_t *, window_t *);
+  /** ReparentNotify event */
+  void (*reparent) (xcb_reparent_notify_event_t *, window_t *);
+  /** UnmapNotify event */
+  void (*unmap) (xcb_unmap_notify_event_t *, window_t *);
+  /** PropertyNotify event */
+  void (*property) (xcb_property_notify_event_t *, window_t *);
+} plugin_events_notify_t;
 
-bool rendering_backend_load(void);
+/** Plugin virtual table */
+typedef struct
+{
+  /** Plugin name */
+  const char *name;
+  /** Plugin events hooks */
+  plugin_events_notify_t events;
+  /** Hook called when managing the window on startup */
+  void (*window_manage_existing)(const int, window_t **);
+  /** Hook to get the opacity of the given window */
+  uint16_t (*window_get_opacity)(const window_t *);
+} plugin_vtable_t;
+
+/** Plugin list element */
+typedef struct _plugin_t
+{
+  /** Opaque "handle" for the plugin */
+  void *dlhandle;
+  /** Plugin virtual table */
+  plugin_vtable_t *vtable;
+  struct _plugin_t *prev;
+  struct _plugin_t *next;
+} plugin_t;
+
+/** Call the appropriate event handlers according to the event type */
+#define PLUGINS_EVENT_HANDLE(event, event_type, window)			\
+  for(plugin_t *plugin = globalconf.plugins; plugin;			\
+      plugin = plugin->next)						\
+    {									\
+      if(plugin->vtable->events.event_type)				\
+	(*plugin->vtable->events.event_type)(event, window);		\
+    }
+
+plugin_t *plugin_load(const char *);
+void plugin_load_all(void);
+plugin_t *plugin_search_by_name(const char *);
+void plugin_unload(plugin_t **);
+void plugin_unload_all(void);
 
 #endif

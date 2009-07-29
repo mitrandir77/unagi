@@ -295,8 +295,10 @@ display_init_redirect_finalise(void)
 			 NULL);
 
   /* Add all these windows excluding the root window of course */
-  window_add_all(xcb_query_tree_children_length(query_tree_reply),
-		 xcb_query_tree_children(query_tree_reply));
+  const int nwindows = xcb_query_tree_children_length(query_tree_reply);
+  if(nwindows)
+    window_manage_existing(nwindows,
+			   xcb_query_tree_children(query_tree_reply));
 
   free(query_tree_reply);
 }

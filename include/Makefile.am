@@ -5,4 +5,6 @@ include_HEADERS = structs.h 	\
 	experiment.h 		\
 	util.h 			\
 	plugin.h		\
+	plugin_common.h		\
+	rendering.h		\
 	atoms.h

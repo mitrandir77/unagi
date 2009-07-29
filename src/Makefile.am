@@ -10,4 +10,6 @@ pcompmgr_SOURCES = display.c 	\
 	experiment.c 		\
 	util.c 			\
 	plugin.c		\
+	plugin_common.c		\
+	rendering.c		\
 	pcompmgr.c

@@ -16,45 +16,9 @@
  *  <http://www.gnu.org/licenses/>.
  */
 
-#ifndef STRUCTS_H
-#define STRUCTS_H
+#ifndef PLUGIN_COMMON_H
+#define PLUGIN_COMMON_H
 
-#include <xcb/xcb.h>
-#include <xcb/xcb_event.h>
-
-#include <confuse.h>
-
-#include "window.h"
-#include "rendering.h"
-#include "plugin.h"
-
-typedef struct _display_extensions_t
-{
-  const xcb_query_extension_reply_t *composite;
-  const xcb_query_extension_reply_t *xfixes;
-  const xcb_query_extension_reply_t *damage;
-} display_extensions_t;
-
-typedef struct _conf_t
-{
-  xcb_connection_t *connection;
-  int screen_nbr;
-  xcb_screen_t *screen;
-  display_extensions_t extensions;
-  xcb_event_handlers_t evenths;
-  xcb_window_t cm_window;
-  window_t *windows;
-  bool do_repaint;
-  cfg_t *cfg;
-
-  char *rendering_dir;
-  void *rendering_dlhandle;
-  rendering_t *rendering;
-
-  char *plugins_dir;
-  plugin_t *plugins;
-} conf_t;
-
-extern conf_t globalconf;
+void *plugin_common_dlopen(const char *, const char *);
 
 #endif

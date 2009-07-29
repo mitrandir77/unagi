@@ -22,48 +22,113 @@
 #include "plugin.h"
 #include "structs.h"
 #include "util.h"
+#include "plugin_common.h"
 
-/** Load the  default backend or fallback  on another one  if there is
- *  any error
+/** Load the plugin with the given name
  *
- * \return True if a rendering backend was successfully loaded
+ * \param name The plugin name
+ * \return The plugin loaded or NULL if any error
  */
-bool
-rendering_backend_load(void)
+plugin_t *
+plugin_load(const char *name)
 {
+  plugin_t *new_plugin = calloc(1, sizeof(plugin_t));
+  char *error;
+
   /* Clear any existing error */
   dlerror();
 
-  /* Get the rendering backend from the configuration file */
-  const char *rendering_name = cfg_getstr(globalconf.cfg, "rendering");
-
-  /* Get the rendering backend path */
-  const size_t rendering_path_len = strlen(rendering_name) +
-    strlen(globalconf.rendering_dir) + sizeof(".so");
-
-  char rendering_path[rendering_path_len];
-
-  snprintf(rendering_path, rendering_path_len, "%s%s.so",
-	   globalconf.rendering_dir, rendering_name);
-
-  char *error;
-  globalconf.rendering_dlhandle = dlopen(rendering_path, RTLD_LAZY);
-
+  /* Open the plugin in the  plugins directory given as a command line
+     parameter or the default path set during compilation */
+  new_plugin->dlhandle = plugin_common_dlopen(globalconf.plugins_dir, name);
   if((error = dlerror()))
-    {
-      fatal_no_exit("Can't load rendering backend: %s", error);
-      return false;
-    }
+    goto plugin_load_error;
 
-  /* Get the backend functions addresses given in a structure in it */
-  globalconf.rendering = dlsym(globalconf.rendering_dlhandle,
-			       "rendering_functions");
-
+  /* Load the virtual table of  the plugins containing the pointers to
+     the plugins functions */
+  new_plugin->vtable = dlsym(new_plugin->dlhandle, "plugin_vtable");
   if((error = dlerror()))
-    {
-      fatal_no_exit(error);
-      return false;
-    }
+    goto plugin_load_error;
 
-  return true;
+  debug("Plugin %s loaded", name);
+  return new_plugin;	  
+
+ plugin_load_error:
+  debug("Can't load plugin %s", name);
+  fatal_no_exit(error);
+  free(new_plugin);
+  return NULL;
+}
+
+/** Load all the plugins given in the configuration file */
+void
+plugin_load_all(void)
+{
+  const unsigned int plugins_nb = cfg_size(globalconf.cfg, "plugins");
+  if(!plugins_nb)
+    return;
+
+  plugin_t *plugin = globalconf.plugins;
+  for(unsigned int plugin_n = 0; plugin_n < plugins_nb; plugin_n++)
+    {
+      plugin_t *new_plugin = plugin_load(cfg_getnstr(globalconf.cfg, "plugins", plugin_n));
+      if(!new_plugin)
+	continue;
+
+      if(!globalconf.plugins)
+	globalconf.plugins = plugin = new_plugin;
+      else
+	{
+	  plugin->next = new_plugin;
+	  plugin->next->prev = plugin;
+	}
+
+      plugin = plugin->next;
+    }
+}
+
+/** Look for a plugin from its name
+ *
+ * \param name The plugin name
+ * \return Return the plugin or NULL
+ */
+plugin_t *
+plugin_search_by_name(const char *name)
+{
+  for(plugin_t *plugin = globalconf.plugins; plugin; plugin = plugin->next)
+    if(strcmp(plugin->vtable->name, name) == 0)
+      return plugin;
+
+  return NULL;
+}
+
+/** Unload the given plugin and free the associated memory
+ *
+ * \param plugin A pointer to the plugin to be freed
+ */
+void
+plugin_unload(plugin_t **plugin)
+{
+  if((*plugin)->prev)
+    (*plugin)->prev->next = (*plugin)->next;
+  else
+    globalconf.plugins = (*plugin)->next;
+
+  dlclose((*plugin)->dlhandle);
+  free(*plugin);
+}
+
+/** Unload all the plugins and their memory */
+void
+plugin_unload_all(void)
+{
+  plugin_t *plugin = globalconf.plugins;
+  plugin_t *plugin_next;
+
+  while(plugin != NULL)
+    {
+      plugin_next = plugin->next;
+      plugin_unload(&plugin);
+      plugin = plugin_next;
+    }
 }

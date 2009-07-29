@@ -49,6 +49,7 @@ parse_configuration_file(FILE *config_fp)
 {
   cfg_opt_t opts[] = {
     CFG_STR("rendering", "render", CFGF_NONE),
+    CFG_STR_LIST("plugins", "{}", CFGF_NONE),
     CFG_END()
   };
 
@@ -66,7 +67,8 @@ display_help(void)
   -h, --help                show help\n\
   -v, --version             show version\n\
   -c, --config FILE         configuration file path\n\
-  -r, --rendering-path PATH rendering backend path\n");
+  -r, --rendering-path PATH rendering backend path\n\
+  -p, --plugins-path PATH   plugins path\n");
 }
 
 static void
@@ -76,14 +78,15 @@ parse_command_line_parameters(int argc, char **argv)
     { "help", 0, NULL, 'h' },
     { "version", 0, NULL, 'v' },
     { "config", 1, NULL, 'c' },
-    { "rendering-path", 0, NULL, 'r' },
+    { "rendering-path", 1, NULL, 'r' },
+    { "plugins-path", 1, NULL, 'p' },
     { NULL, 0, NULL, 0 }
   };
 
   int opt;
   FILE *config_fp = NULL;
 
-  while((opt = getopt_long(argc, argv, "vhc:r:",
+  while((opt = getopt_long(argc, argv, "vhc:r:p:",
 			   long_options, NULL)) != -1)
     {
       switch(opt)
@@ -104,7 +107,16 @@ parse_command_line_parameters(int argc, char **argv)
 	    }
 	  break;
 	case 'r':
-	  globalconf.rendering_dir = strdup(optarg);
+	  if(optarg && strlen(optarg))
+	    globalconf.rendering_dir = strdup(optarg);
+	  else
+	    fatal("-r option requires a directory");
+	  break;
+	case 'p':
+	  if(optarg && strlen(optarg))
+	    globalconf.plugins_dir = strdup(optarg);
+	  else
+	    fatal("-p option requires a directory");
 	  break;
 	}
     }
@@ -129,9 +141,15 @@ parse_command_line_parameters(int argc, char **argv)
 
   fclose(config_fp);
 
-  /* Get the rendering backend path */
+  /* Get the rendering backend path if not given in the command line
+     parameters */
   if(!globalconf.rendering_dir)
     globalconf.rendering_dir = strdup(RENDERING_DIR);
+
+  /* Get  the  plugins   path  if  not  given  in   the  command  line
+     parameters */
+  if(!globalconf.plugins_dir)
+    globalconf.plugins_dir = strdup(PLUGINS_DIR);
 }
 
 /** Perform cleanup on normal exit */
@@ -148,11 +166,14 @@ exit_cleanup(void)
   window_list_cleanup();
 
   /* Free resources related to the rendering backend */
-  if(globalconf.rendering_dlhandle != NULL)
-    dlclose(globalconf.rendering_dlhandle);
+  rendering_unload();
+
+  /* Free resources related to the plugins */
+  plugin_unload_all();
 
   cfg_free(globalconf.cfg);
   free(globalconf.rendering_dir);
+  free(globalconf.plugins_dir);
 
   xcb_disconnect(globalconf.connection);
 }
@@ -214,7 +235,7 @@ main(int argc, char **argv)
   event_init_start_handlers();
 
   /* Pre-initialisation of the rendering backend */
-  if(!rendering_backend_load())
+  if(!rendering_load())
     fatal("Can't initialise rendering backend");
 
   /* Get replies for EWMH atoms initialisation */
@@ -254,6 +275,9 @@ main(int argc, char **argv)
   display_init_extensions_finalise();
   if(!(*globalconf.rendering->init_finalise)())
     return EXIT_FAILURE;
+
+  /* All the plugins given in the configuration file */
+  plugin_load_all();
 
   /* Validate  errors   and  get  PropertyNotify   needed  to  acquire
      _NET_WM_CM_Sn ownership */
