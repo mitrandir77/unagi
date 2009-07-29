@@ -258,8 +258,8 @@ main(int argc, char **argv)
 
   /* Check ownership for WM_CM_Sn before actually claiming it (ICCCM) */
   xcb_window_t wm_cm_owner_win;
-  if(!xcb_ewmh_get_wm_cm_owner_reply(globalconf.connection, wm_cm_owner_cookie,
-				     &wm_cm_owner_win, NULL) ||
+  if(xcb_ewmh_get_wm_cm_owner_reply(globalconf.connection, wm_cm_owner_cookie,
+				    &wm_cm_owner_win, NULL) &&
      wm_cm_owner_win != XCB_NONE)
     fatal("A compositing manager is already active (window=%jx)",
 	  (uintmax_t) wm_cm_owner_win);
