@@ -122,7 +122,7 @@ static void
 opacity_window_manage_existing(const int nwindows,
 			       window_t **windows)
 {
-  opacity_window_t *opacity_windows_tail;
+  opacity_window_t *opacity_windows_tail = NULL;
 
   for(int nwindow = 0; nwindow < nwindows; nwindow++)
     {

@@ -261,7 +261,8 @@ main(int argc, char **argv)
   if(!xcb_ewmh_get_wm_cm_owner_reply(globalconf.connection, wm_cm_owner_cookie,
 				     &wm_cm_owner_win, NULL) ||
      wm_cm_owner_win != XCB_NONE)
-    fatal("A compositing manager is already active");
+    fatal("A compositing manager is already active (window=%jx)",
+	  (uintmax_t) wm_cm_owner_win);
 
   /* Now send requests to register the CM */
   display_register_cm();

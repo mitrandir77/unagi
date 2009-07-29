@@ -17,7 +17,7 @@ AC_PROG_LIBTOOL
 
 # Checks for libraries
 PKG_CHECK_MODULES(DEPS, [
-	  libxdg-basedir
+	  libxdg-basedir >= 1.0.0
 	  libconfuse
 
 	  xcb >= 1.4
