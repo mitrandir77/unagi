@@ -340,6 +340,9 @@ render_reset_background(void)
   xcb_render_free_picture(globalconf.connection,
 			  _render_conf.background_picture);
 
+  /* Send requests to get the root window background pixmap */ 
+  window_get_root_background_pixmap();
+
   _render_init_root_background();
 }
 

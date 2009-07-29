@@ -318,6 +318,7 @@ main(int argc, char **argv)
   /* Flush existing  requests before  the loop as  DamageNotify events
      may have been received in the meantime */
   xcb_flush(globalconf.connection);
+  globalconf.do_repaint = true;
 
   /* Main event and error loop */
   do
@@ -342,6 +343,8 @@ main(int argc, char **argv)
 	  window_paint_all();
 	  xcb_aux_sync(globalconf.connection);
 	}
+
+      globalconf.do_repaint = false;
     }
   while(true);
 

@@ -518,6 +518,7 @@ event_handle_unmap_notify(void *data __attribute__((unused)),
 
   /* The window is not damaged anymore as it is not visible */
   window->damaged = false;
+  globalconf.do_repaint = true;
 
   PLUGINS_EVENT_HANDLE(event, unmap, window);
 
@@ -540,6 +541,7 @@ event_handle_property_notify(void *data __attribute__((unused)),
   /* If the background image has been updated */
   if(atoms_is_background_atom(event->atom))
     {
+      debug("New background Pixmap set");
       (*globalconf.rendering->reset_background)();
 
       /* Force repaint of the entire screen */
