@@ -81,9 +81,8 @@ plugin_load_all(void)
 	{
 	  plugin->next = new_plugin;
 	  plugin->next->prev = plugin;
+	  plugin = plugin->next;
 	}
-
-      plugin = plugin->next;
     }
 }
 
