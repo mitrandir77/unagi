@@ -27,6 +27,10 @@
 # include <sys/types.h>
 #endif
 
+#include <xcb/xcb.h>
+#include <xcb/xcb_keysyms.h>
+#include <X11/keysym.h>
+
 #define ssizeof(foo)            (ssize_t)sizeof(foo)
 #define countof(foo)            (ssizeof(foo) / ssizeof(foo[0]))
 
@@ -53,5 +57,15 @@ void _warn(int, const char *, const char *, ...)
 
 void _debug(int, const char *, const char *, ...)
   __attribute__ ((format(printf, 3, 4)));
+
+void util_lock_mask_get_reply(xcb_get_modifier_mapping_cookie_t cookie);
+xcb_keysym_t util_key_getkeysym(const xcb_keycode_t, const uint16_t);
+
+#define util_free(mem_pp)			   \
+  {						   \
+        typeof(**(mem_pp)) **__ptr = (mem_pp);     \
+        free(*__ptr);                              \
+        *__ptr = NULL;                             \
+  }
 
 #endif

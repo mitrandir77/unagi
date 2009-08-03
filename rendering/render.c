@@ -415,10 +415,6 @@ render_paint_window(window_t *window)
       render_window->picture = xcb_generate_id(globalconf.connection);
       const uint32_t create_picture_val = XCB_SUBWINDOW_MODE_INCLUDE_INFERIORS;
 
-      /* Free existing window pixmap if any */
-      window_free_pixmap(window);
-      window->pixmap = window_get_pixmap(window);
-
       xcb_render_pictvisual_t *window_pictvisual =
 	xcb_render_util_find_visual_format(_render_conf.pict_formats,
 					   window->attributes->visual);
@@ -534,8 +530,11 @@ render_free_window_pixmap(window_t *window)
 {
   _render_window_t *render_window = (_render_window_t *) window->rendering;
 
-  xcb_render_free_picture(globalconf.connection, render_window->picture);
-  render_window->picture = XCB_NONE;
+  if(render_window)
+    {
+      xcb_render_free_picture(globalconf.connection, render_window->picture);
+      render_window->picture = XCB_NONE;
+    }
 }
 
 /** Free the resources allocated by the backend for the given window

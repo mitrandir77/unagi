@@ -30,6 +30,7 @@
 #include <xcb/xcb_ewmh.h>
 #include <xcb/xcb_aux.h>
 #include <xcb/xcb_event.h>
+#include <xcb/xcb_keysyms.h>
 
 #include <basedir.h>
 #include <basedir_fs.h>
@@ -171,6 +172,9 @@ exit_cleanup(void)
   /* Free resources related to the plugins */
   plugin_unload_all();
 
+  /* Free resources related to the keymaps */
+  xcb_key_symbols_free(globalconf.keysyms);
+
   cfg_free(globalconf.cfg);
   free(globalconf.rendering_dir);
   free(globalconf.plugins_dir);
@@ -285,6 +289,10 @@ main(int argc, char **argv)
   xcb_aux_sync(globalconf.connection);
   xcb_event_poll_for_event_loop(&globalconf.evenths);
 
+  globalconf.keysyms = xcb_key_symbols_alloc(globalconf.connection);
+  xcb_get_modifier_mapping_cookie_t key_mapping_cookie =
+    xcb_get_modifier_mapping_unchecked(globalconf.connection);
+
   /* Finish CM X registration */
   if(!display_register_cm_finalise())
     fatal("Could not acquire _NET_WM_CM_Sn ownership");
@@ -310,6 +318,12 @@ main(int argc, char **argv)
 
   xcb_ungrab_server(globalconf.connection);
 
+  /* Check the  plugin requirements  which will disable  plugins which
+     don't meet the requirements */
+  plugin_check_requirements();
+
+  util_lock_mask_get_reply(key_mapping_cookie);
+
   /* Initialise normal errors and events handlers */
   event_init_handlers();
 
@@ -326,7 +340,7 @@ main(int argc, char **argv)
       /* Block until an event is received */
       event = xcb_wait_for_event(globalconf.connection);
 
-      /* Check X connection to avoid SIGSERV */
+      /* Check X connection to avoid SIGSEGV */
       if(xcb_connection_has_error(globalconf.connection))
 	 fatal("X connection invalid");
 
@@ -340,7 +354,16 @@ main(int argc, char **argv)
       /* Now paint the windows */
       if(globalconf.do_repaint)
 	{
-	  window_paint_all();
+	  window_t *windows = NULL;
+	  for(plugin_t *plugin = globalconf.plugins; plugin; plugin = plugin->next)
+	    if(plugin->enable && plugin->vtable->render_windows &&
+	       (windows = (*plugin->vtable->render_windows)()))
+	      break;
+
+	  if(!windows)
+	    windows = globalconf.windows;
+
+	  window_paint_all(windows);
 	  xcb_aux_sync(globalconf.connection);
 	}
 

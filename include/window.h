@@ -42,14 +42,27 @@ void window_free_pixmap(window_t *);
 void window_list_cleanup(void);
 window_t *window_list_get(const xcb_window_t);
 void window_list_remove_window(window_t *);
-void window_register_property_notify(window_t *);
+void window_register_notify(const window_t *);
 void window_get_root_background_pixmap(void);
 xcb_pixmap_t window_get_root_background_pixmap_finalise(void);
 xcb_pixmap_t window_new_root_background_pixmap(void);
-xcb_pixmap_t window_get_pixmap(window_t *);
+xcb_pixmap_t window_get_pixmap(const window_t *);
+bool window_is_visible(const window_t *);
+void window_get_invisible_window_pixmap(window_t *);
+void window_get_invisible_window_pixmap_finalise(window_t *);
 void window_manage_existing(const int nwindows, const xcb_window_t *);
 window_t *window_add(const xcb_window_t);
 void window_restack(window_t *, xcb_window_t);
-void window_paint_all(void);
+void window_paint_all(window_t *);
+
+#define DO_GEOMETRY_WITH_BORDER(kind)					\
+  static inline uint16_t						\
+  window_##kind##_with_border(const xcb_get_geometry_reply_t *geometry)	\
+  {									\
+    return (uint16_t) (geometry->kind + (geometry->border_width * 2));	\
+  }
+
+DO_GEOMETRY_WITH_BORDER(width)
+DO_GEOMETRY_WITH_BORDER(height)
 
 #endif

@@ -21,6 +21,7 @@
 
 #include <xcb/xcb.h>
 #include <xcb/xcb_event.h>
+#include <xcb/xcb_keysyms.h>
 
 #include <confuse.h>
 
@@ -46,10 +47,19 @@ typedef struct _conf_t
   window_t *windows;
   bool do_repaint;
   cfg_t *cfg;
+  xcb_key_symbols_t *keysyms;
 
   char *rendering_dir;
   void *rendering_dlhandle;
   rendering_t *rendering;
+
+  struct
+  {
+    uint16_t numlock;
+    uint16_t shiftlock;
+    uint16_t capslock;
+    uint16_t modeswitch;
+  } key_masks;
 
   char *plugins_dir;
   plugin_t *plugins;

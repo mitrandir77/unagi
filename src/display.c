@@ -233,7 +233,7 @@ display_register_cm(void)
   xcb_change_property(globalconf.connection, XCB_PROP_MODE_REPLACE,
 		      globalconf.cm_window,
 		      _NET_WM_NAME, UTF8_STRING, 8,
-		      strlen(PACKAGE_NAME), PACKAGE_NAME);
+		      sizeof(PACKAGE_NAME), PACKAGE_NAME);
 }
 
 /** Finish  acquiring  ownership  by  checking  whether  the  SetOwner
@@ -272,6 +272,8 @@ display_init_redirect(void)
 
   /* Declare interest in meaningful events */
   const uint32_t select_input_val =
+    XCB_EVENT_MASK_KEY_PRESS |
+    XCB_EVENT_MASK_KEY_RELEASE |
     XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY |
     XCB_EVENT_MASK_STRUCTURE_NOTIFY |
     XCB_EVENT_MASK_PROPERTY_CHANGE;

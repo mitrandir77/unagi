@@ -27,6 +27,7 @@ PKG_CHECK_MODULES(DEPS, [
 	  xcb-ewmh
 	  xcb-event
 	  xcb-aux
+	  xcb-keysyms
 ])
 
 AC_SUBST(DEPS_CFLAGS)
@@ -40,6 +41,13 @@ PKG_CHECK_MODULES(RENDER_BACKEND, [
 
 AC_SUBST(RENDER_BACKEND_CFLAGS)
 AC_SUBST(RENDER_BACKEND_LIBS)
+
+PKG_CHECK_MODULES(EXPOSE_PLUGIN, [
+	  xcb-image
+])
+
+AC_SUBST(EXPOSE_PLUGIN_CFLAGS)
+AC_SUBST(EXPOSE_PLUGIN_LIBS)
 
 # Checks for header files
 AC_CHECK_HEADERS([stdint.h stdlib.h string.h])

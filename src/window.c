@@ -24,6 +24,8 @@
 #include <xcb/xcb_atom.h>
 #include <xcb/composite.h>
 
+#include <xcb/xcb_aux.h>
+
 #include "window.h"
 #include "structs.h"
 #include "atoms.h"
@@ -160,17 +162,17 @@ window_free_pixmap(window_t *window)
     }
 }
 
-/** Send   ChangeWindowAttributes  request   in  order   to   get  the
- *  PropertyNotify   events  for  opacity,   otherwise  we   lose  the
- *  transparency messages
+/** Send ChangeWindowAttributes request in order to get events related
+ *  to a window
  *
  * \param window The window object
  */
 void
-window_register_property_notify(window_t *window)
+window_register_notify(const window_t *window)
 {
-  /* Get transparency messages */
-  const uint32_t select_input_val = XCB_EVENT_MASK_PROPERTY_CHANGE;
+  /* Get transparency and keyboard notifications */
+  const uint32_t select_input_val = XCB_EVENT_MASK_KEY_RELEASE |
+    XCB_EVENT_MASK_KEY_PRESS | XCB_EVENT_MASK_PROPERTY_CHANGE;
 
   xcb_change_window_attributes(globalconf.connection, window->id,
 			       XCB_CW_EVENT_MASK, &select_input_val);
@@ -263,7 +265,7 @@ window_new_root_background_pixmap(void)
  * \return The Pixmap associated with the Window
  */
 xcb_pixmap_t
-window_get_pixmap(window_t *window)
+window_get_pixmap(const window_t *window)
 {
   /* Update the pixmap thanks to CompositeNameWindowPixmap */
   xcb_pixmap_t pixmap = xcb_generate_id(globalconf.connection);
@@ -273,6 +275,48 @@ window_get_pixmap(window_t *window)
 				   pixmap);
 
   return pixmap;
+}
+
+bool
+window_is_visible(const window_t *window)
+{
+  return (window->geometry &&
+	  window->geometry->x + window->geometry->width >= 1 &&
+	  window->geometry->y + window->geometry->height >= 1 &&
+	  window->geometry->x < globalconf.screen->width_in_pixels &&
+	  window->geometry->y < globalconf.screen->height_in_pixels);
+}
+
+static inline void
+window_set_override_redirect(const window_t *window,
+			     const uint32_t do_override_redirect)
+{
+  xcb_change_window_attributes(globalconf.connection,
+			       window->id,
+			       XCB_CW_OVERRIDE_REDIRECT,
+			       &do_override_redirect);
+}
+
+void
+window_get_invisible_window_pixmap(window_t *window)
+{
+  if(!window_is_visible(window) || !window->attributes ||
+     window->attributes->map_state == XCB_MAP_STATE_VIEWABLE)
+    return;
+
+  debug("Getting Pixmap of invisible window %jx", (uintmax_t) window->id);
+
+  if(!window->attributes->override_redirect)
+    window_set_override_redirect(window, true);
+
+  xcb_map_window(globalconf.connection, window->id);
+}
+
+void
+window_get_invisible_window_pixmap_finalise(window_t *window)
+{
+  xcb_unmap_window(globalconf.connection, window->id);
+  window_set_override_redirect(window, false);
 }
 
 /** Send requests when a window is added (CreateNotify or on startup),
@@ -377,7 +421,10 @@ window_manage_existing(const int nwindows,
 	 mapped, because when the window is unmapped, we don't receive
 	 PropertyNotify */
       if(new_windows[nwindow]->attributes->map_state == XCB_MAP_STATE_VIEWABLE)
-	window_register_property_notify(new_windows[nwindow]);
+	{
+	  window_register_notify(new_windows[nwindow]);
+	  new_windows[nwindow]->pixmap = window_get_pixmap(new_windows[nwindow]);
+	}
 
       new_windows[nwindow]->geometry =
 	xcb_get_geometry_reply(globalconf.connection,
@@ -466,23 +513,16 @@ window_restack(window_t *window, xcb_window_t window_new_above_id)
 }
 
 void
-window_paint_all(void)
+window_paint_all(window_t *windows)
 {
 #if __DEBUG__
   static uint32_t _paint_all_counter = 0;
 #endif
   (*globalconf.rendering->paint_background)();
 
-  for(window_t *window = globalconf.windows; window; window = window->next)
+  for(window_t *window = windows; window; window = window->next)
     {
-      if(!window->damaged)
-	continue;
-
-      if(!window->geometry ||
-	 window->geometry->x + window->geometry->width < 1 ||
-	 window->geometry->y + window->geometry->height < 1 ||
-	 window->geometry->x >= globalconf.screen->width_in_pixels ||
-	 window->geometry->y >= globalconf.screen->height_in_pixels)
+      if(!window->damaged || !window_is_visible(window))
 	{
 	  debug("Ignoring window %jx", (uintmax_t) window->id);
 	  continue;

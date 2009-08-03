@@ -160,7 +160,10 @@ opacity_get_window_opacity(const window_t *window)
       opacity_window = opacity_window->next)
     ;
 
-  assert(opacity_window);
+  /* Can't find this window, maybe  because it comes from a plugin, so
+     consider it as opaque */
+  if(!opacity_window)
+    return UINT16_MAX;
 
   /* Request the reply for the GetProperty request previously sent */
   if(opacity_window->cookie.sequence != 0)
@@ -199,7 +202,7 @@ opacity_event_handle_map_notify(xcb_map_notify_event_t *event,
 	  }
     }
 
-  window_register_property_notify(window);
+  window_register_notify(window);
 }
 
 /** Handler  for PropertyNotify  event which  only send  a GetProperty
@@ -251,6 +254,9 @@ static void
 opacity_event_handle_unmap_notify(xcb_unmap_notify_event_t *event __attribute__((unused)),
 				  window_t *window)
 {
+  if(!_opacity_windows)
+    return;
+
   opacity_window_t *old_opacity_window = NULL;
 
   if(_opacity_windows->window == window)
@@ -266,7 +272,8 @@ opacity_event_handle_unmap_notify(xcb_unmap_notify_event_t *event __attribute__(
 	  opacity_window = opacity_window->next)
 	;
 
-      assert(opacity_window->next);
+      if(!opacity_window->next)
+	return;
 
       old_opacity_window = opacity_window->next;
       opacity_window->next = old_opacity_window->next;
@@ -299,11 +306,15 @@ plugin_vtable_t plugin_vtable = {
     NULL,
     NULL,
     NULL,
+    NULL,
+    NULL,
     opacity_event_handle_map_notify,
     NULL,
     opacity_event_handle_unmap_notify,
     opacity_event_handle_property_notify
   },
+  .check_requirements = NULL,
   .window_manage_existing = opacity_window_manage_existing,
-  .window_get_opacity = opacity_get_window_opacity
+  .window_get_opacity = opacity_get_window_opacity,
+  .render_windows = NULL
 };

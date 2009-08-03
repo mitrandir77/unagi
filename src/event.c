@@ -267,6 +267,42 @@ event_handle_damage_notify(void *data __attribute__((unused)),
   return 0;
 }
 
+/** Handler for KeyPress events reported once a key is pressed
+ *
+ * \param event The X KeyPress event
+ */
+static int
+event_handle_key_press(void *data __attribute__((unused)),
+		       xcb_connection_t *c __attribute__((unused)),
+		       xcb_key_press_event_t *event)
+{
+  debug("KeyPress: detail=%ju, event=%jx, state=%jx",
+	(uintmax_t) event->detail, (uintmax_t) event->event,
+	(uintmax_t) event->state);
+
+  PLUGINS_EVENT_HANDLE(event, key_press, window_list_get(event->event));
+
+  return 0;
+}
+
+/** Handler for KeyRelease events reported once a key is released
+ *
+ * \param event The X KeyRelease event
+ */
+static int
+event_handle_key_release(void *data __attribute__((unused)),
+			 xcb_connection_t *c __attribute__((unused)),
+			 xcb_key_release_event_t *event)
+{
+  debug("KeyRelease: detail=%ju, event=%jx, state=%jx",
+	(uintmax_t) event->detail, (uintmax_t) event->event,
+	(uintmax_t) event->state);
+
+  PLUGINS_EVENT_HANDLE(event, key_release, window_list_get(event->event));
+
+  return 0;
+}
+
 /** Handler for CirculateNotify events  reported when a window changes
  *  its position in the stack (either  Top if the window is now on top
  *  of all siblings or Bottom)
@@ -349,7 +385,10 @@ event_handle_configure_notify(void *data __attribute__((unused)),
   if(window->geometry->width != event->width ||
      window->geometry->height != event->height ||
      window->geometry->border_width != event->border_width)
-    window_free_pixmap(window);
+    {
+      window_free_pixmap(window);
+      window->pixmap = window_get_pixmap(window);
+    }
 
   /* Update size and border width */
   window->geometry->width = event->width;
@@ -454,6 +493,7 @@ event_handle_map_notify(void *data __attribute__((unused)),
 
   /* Everytime a window is mapped, a new pixmap is created */
   window_free_pixmap(window);
+  window->pixmap = window_get_pixmap(window);
 
   window->damaged = false;
 
@@ -548,7 +588,47 @@ event_handle_property_notify(void *data __attribute__((unused)),
       globalconf.do_repaint = true;
     }
 
-  PLUGINS_EVENT_HANDLE(event, property, window_list_get(event->window));
+  /* As plugins  requirements are  only atoms, if  the plugin  did not
+     meet the requirements on startup, it can try again... */
+  window_t *window = window_list_get(event->window);
+
+  for(plugin_t *plugin = globalconf.plugins; plugin; plugin = plugin->next)
+    if(plugin->vtable->events.property)
+      {
+	(*plugin->vtable->events.property)(event, window);
+
+	if(!plugin->enable && plugin->vtable->check_requirements)
+	  plugin->enable = (*plugin->vtable->check_requirements)();
+      }
+
+  return 0;
+}
+
+/** Handler for  Mapping event reported  when the keyboard  mapping is
+ *  modified
+ *
+ * \param event The X Mapping event
+ */
+static int
+event_handle_mapping_notify(void *data __attribute__((unused)),
+			    xcb_connection_t *c __attribute__((unused)),
+			    xcb_mapping_notify_event_t *event)
+{
+  debug("MappingNotify: request=%ju, first_keycode=%ju, count=%ju",
+	(uintmax_t) event->request, (uintmax_t) event->first_keycode,
+	(uintmax_t) event->count);
+
+  if(event->request != XCB_MAPPING_MODIFIER &&
+     event->request != XCB_MAPPING_KEYBOARD)
+    return 0;
+
+  xcb_get_modifier_mapping_cookie_t key_mapping_cookie =
+    xcb_get_modifier_mapping_unchecked(globalconf.connection);
+
+  xcb_key_symbols_free(globalconf.keysyms);
+  globalconf.keysyms = xcb_key_symbols_alloc(globalconf.connection);
+
+  util_lock_mask_get_reply(key_mapping_cookie);
 
   return 0;
 }
@@ -566,6 +646,12 @@ event_init_handlers(void)
 			globalconf.extensions.damage->first_event + XCB_DAMAGE_NOTIFY,
 			(xcb_generic_event_handler_t) event_handle_damage_notify,
 			NULL);
+
+  xcb_event_set_key_press_handler(&globalconf.evenths,
+				  event_handle_key_press, NULL);
+
+  xcb_event_set_key_release_handler(&globalconf.evenths,
+				    event_handle_key_release, NULL);
 
   xcb_event_set_circulate_notify_handler(&globalconf.evenths,
 					 event_handle_circulate_notify, NULL);
@@ -590,4 +676,7 @@ event_init_handlers(void)
 
   xcb_event_set_property_notify_handler(&globalconf.evenths,
 					event_handle_property_notify, NULL);
+
+  xcb_event_set_mapping_notify_handler(&globalconf.evenths,
+				       event_handle_mapping_notify, NULL);
 }

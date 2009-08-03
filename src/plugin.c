@@ -86,6 +86,14 @@ plugin_load_all(void)
     }
 }
 
+void
+plugin_check_requirements(void)
+{
+  for(plugin_t *plugin = globalconf.plugins; plugin; plugin = plugin->next)
+    plugin->enable = (!plugin->vtable->check_requirements ? true :
+		     (*plugin->vtable->check_requirements)());
+}
+
 /** Look for a plugin from its name
  *
  * \param name The plugin name
@@ -106,12 +114,15 @@ plugin_search_by_name(const char *name)
  * \param plugin A pointer to the plugin to be freed
  */
 void
-plugin_unload(plugin_t **plugin)
+plugin_unload(plugin_t **plugin, const bool do_update_list)
 {
-  if((*plugin)->prev)
-    (*plugin)->prev->next = (*plugin)->next;
-  else
-    globalconf.plugins = (*plugin)->next;
+  if(do_update_list)
+    {
+      if((*plugin)->prev)
+	(*plugin)->prev->next = (*plugin)->next;
+      else
+	globalconf.plugins = (*plugin)->next;
+    }
 
   dlclose((*plugin)->dlhandle);
   free(*plugin);
@@ -127,7 +138,7 @@ plugin_unload_all(void)
   while(plugin != NULL)
     {
       plugin_next = plugin->next;
-      plugin_unload(&plugin);
+      plugin_unload(&plugin, false);
       plugin = plugin_next;
     }
 }

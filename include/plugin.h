@@ -51,6 +51,10 @@ typedef struct
 {
   /** DamageNotify event */
   void (*damage) (xcb_damage_notify_event_t *, window_t *);
+  /** KeyPress event */
+  void (*key_press) (xcb_key_press_event_t *, window_t *);
+  /** KeyRelease event */
+  void (*key_release) (xcb_key_release_event_t *, window_t *);
   /** CirculateNotify event */
   void (*circulate) (xcb_circulate_notify_event_t *, window_t *);
   /** ConfigureNotify event */
@@ -76,10 +80,13 @@ typedef struct
   const char *name;
   /** Plugin events hooks */
   plugin_events_notify_t events;
+  /** Called before the main loop to check the plugin requirements */
+  bool (*check_requirements)(void);
   /** Hook called when managing the window on startup */
   void (*window_manage_existing)(const int, window_t **);
   /** Hook to get the opacity of the given window */
   uint16_t (*window_get_opacity)(const window_t *);
+  window_t *(*render_windows)(void);
 } plugin_vtable_t;
 
 /** Plugin list element */
@@ -87,6 +94,8 @@ typedef struct _plugin_t
 {
   /** Opaque "handle" for the plugin */
   void *dlhandle;
+  /** If the plugin requirements have been met */
+  bool enable;
   /** Plugin virtual table */
   plugin_vtable_t *vtable;
   struct _plugin_t *prev;
@@ -98,14 +107,15 @@ typedef struct _plugin_t
   for(plugin_t *plugin = globalconf.plugins; plugin;			\
       plugin = plugin->next)						\
     {									\
-      if(plugin->vtable->events.event_type)				\
+      if(plugin->enable && plugin->vtable->events.event_type)		\
 	(*plugin->vtable->events.event_type)(event, window);		\
     }
 
 plugin_t *plugin_load(const char *);
 void plugin_load_all(void);
+void plugin_check_requirements(void);
 plugin_t *plugin_search_by_name(const char *);
-void plugin_unload(plugin_t **);
+void plugin_unload(plugin_t **, const bool);
 void plugin_unload_all(void);
 
 #endif
