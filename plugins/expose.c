@@ -185,6 +185,8 @@ _expose_free_slots(_expose_window_slot_t **slots)
 	 slot->scale_window.window->geometry->height != slot->window->geometry->height)
 	xcb_free_pixmap(globalconf.connection, slot->scale_window.window->pixmap);
 
+      (*globalconf.rendering->free_window)(slot->scale_window.window);
+
       free(slot->scale_window.window->geometry);
       free(slot->scale_window.window);
     }

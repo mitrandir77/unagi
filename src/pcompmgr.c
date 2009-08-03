@@ -163,14 +163,18 @@ exit_cleanup(void)
   if(globalconf.cm_window != XCB_NONE)
     xcb_destroy_window(globalconf.connection, globalconf.cm_window);
 
-  /* Destroy the linked-list of windows */
-  window_list_cleanup();
-
-  /* Free resources related to the rendering backend */
-  rendering_unload();
-
   /* Free resources related to the plugins */
   plugin_unload_all();
+
+  /* Destroy the  linked-list of  windows which has  to be  done after
+     unloading the plugins as the  plugins may use the windows list to
+     free memory */
+  window_list_cleanup();
+
+  /* Free resources related  to the rendering backend which  has to be
+     done  after the  windows  list  cleanup as  the  latter free  the
+     rendering information associated with each window */
+  rendering_unload();
 
   /* Free resources related to the keymaps */
   xcb_key_symbols_free(globalconf.keysyms);
