@@ -22,6 +22,7 @@
 #include <string.h>
 #include <dlfcn.h>
 #include <getopt.h>
+#include <stdlib.h>
 
 #include <xcb/xcb.h>
 #include <xcb/composite.h>
@@ -42,6 +43,7 @@
 #include "atoms.h"
 #include "util.h"
 #include "plugin.h"
+#include "key.h"
 
 conf_t globalconf;
 

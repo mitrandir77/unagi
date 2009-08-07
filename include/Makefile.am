@@ -2,7 +2,7 @@ include_HEADERS = structs.h 	\
 	display.h 		\
 	event.h 		\
 	window.h 		\
-	experiment.h 		\
+	key.h	 		\
 	util.h 			\
 	plugin.h		\
 	plugin_common.h		\

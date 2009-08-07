@@ -113,6 +113,22 @@ _opacity_window_new(window_t *window)
   return new_opacity_window;
 }
 
+static inline void
+_opacity_free_property_reply(opacity_window_t *opacity_window)
+{
+  if(opacity_window->cookie.sequence != 0)
+    free(xcb_get_property_reply(globalconf.connection,
+				opacity_window->cookie,
+				NULL));  
+}
+
+static inline void
+_opacity_free_window(opacity_window_t *opacity_window)
+{
+  _opacity_free_property_reply(opacity_window);
+  free(opacity_window);
+}
+
 /** Manage existing windows
  *
  * \param nwindows The number of windows to manage
@@ -232,9 +248,7 @@ opacity_event_handle_property_notify(xcb_property_notify_event_t *event,
   assert(opacity_window);
 
   /* Send a GetProperty request, but free existing one if any */
-  if(opacity_window->cookie.sequence != 0)
-    free(xcb_get_property_reply(globalconf.connection,
-				opacity_window->cookie, NULL));
+  _opacity_free_property_reply(opacity_window);
 
   opacity_window->cookie = _opacity_get_property(window->id);
       
@@ -279,7 +293,7 @@ opacity_event_handle_unmap_notify(xcb_unmap_notify_event_t *event __attribute__(
       opacity_window->next = old_opacity_window->next;
     }
 
-  free(old_opacity_window);
+  _opacity_free_window(old_opacity_window);
 }
 
 /** Called on dlclose() and free the memory allocated by this plugin */
@@ -292,7 +306,7 @@ opacity_destructor(void)
   while(opacity_window != NULL)
     {
       opacity_window_next = opacity_window->next;
-      free(opacity_window);
+      _opacity_free_window(opacity_window);
       opacity_window = opacity_window_next;
     }
 }

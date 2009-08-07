@@ -93,6 +93,7 @@ window_list_free_window(window_t *window)
       window->damage = XCB_NONE;
     }
 
+  /* TODO: free plugins memory? */
   window_free_pixmap(window);
   (*globalconf.rendering->free_window)(window);
 

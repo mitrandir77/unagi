@@ -19,17 +19,11 @@
 #ifndef UTIL_H
 #define UTIL_H
 
-#include <stdio.h>
-#include <stdlib.h>
 #include <stdbool.h>
 
 #ifdef HAVE_SYS_TYPES_H
 # include <sys/types.h>
 #endif
-
-#include <xcb/xcb.h>
-#include <xcb/xcb_keysyms.h>
-#include <X11/keysym.h>
 
 #define ssizeof(foo)            (ssize_t)sizeof(foo)
 #define countof(foo)            (ssizeof(foo) / ssizeof(foo[0]))
@@ -57,9 +51,6 @@ void _warn(int, const char *, const char *, ...)
 
 void _debug(int, const char *, const char *, ...)
   __attribute__ ((format(printf, 3, 4)));
-
-void util_lock_mask_get_reply(xcb_get_modifier_mapping_cookie_t cookie);
-xcb_keysym_t util_key_getkeysym(const xcb_keycode_t, const uint16_t);
 
 #define util_free(mem_pp)			   \
   {						   \

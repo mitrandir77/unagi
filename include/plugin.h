@@ -17,7 +17,7 @@
  */
 
 /** General Plugins architecture:
- *  =====================
+ *  =============================
  *
  *  Several plugins  may be loaded at  the same time.   Each plugin is
  *  defined in a 'plugin_t' structure holding the virtual table of the

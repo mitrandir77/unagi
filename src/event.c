@@ -16,6 +16,8 @@
  *  <http://www.gnu.org/licenses/>.
  */
 
+#include <stdlib.h>
+
 #include <xcb/xcb.h>
 #include <xcb/composite.h>
 #include <xcb/xcb_event.h>
@@ -25,6 +27,7 @@
 #include "util.h"
 #include "window.h"
 #include "atoms.h"
+#include "key.h"
 
 /** Requests label of Composite extension for X error reporting, which
  *  are uniquely  identified according to their  minor opcode starting
@@ -579,7 +582,8 @@ event_handle_property_notify(void *data __attribute__((unused)),
 	(uintmax_t) event->window, (uintmax_t) event->atom);
 
   /* If the background image has been updated */
-  if(atoms_is_background_atom(event->atom))
+  if(atoms_is_background_atom(event->atom) &&
+     event->window == globalconf.screen->root)
     {
       debug("New background Pixmap set");
       (*globalconf.rendering->reset_background)();

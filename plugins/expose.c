@@ -65,6 +65,7 @@
 #include <stdbool.h>
 #include <math.h>
 #include <string.h>
+#include <stdlib.h>
 
 #include <xcb/xcb.h>
 #include <xcb/xcb_ewmh.h>
@@ -77,6 +78,7 @@
 #include "plugin.h"
 #include "atoms.h"
 #include "util.h"
+#include "key.h"
 
 #define PLUGIN_KEY XK_F12
 #define STRIP_SPACING 10
@@ -380,7 +382,7 @@ _expose_assign_windows_to_slots(const uint32_t nwindows,
 
       int16_t x, y;
       uint16_t distance, nearest_distance = UINT16_MAX;
-      uint32_t window_n_nearest;
+      uint32_t window_n_nearest = 0;
 
       for(uint32_t window_n = 0; window_n < nwindows; window_n++)
 	{

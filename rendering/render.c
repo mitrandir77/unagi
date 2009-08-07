@@ -413,7 +413,7 @@ render_paint_window(window_t *window)
       debug("Creating new picture for window %jx", (uintmax_t) window->id);
 
       render_window->picture = xcb_generate_id(globalconf.connection);
-      const uint32_t create_picture_val = XCB_SUBWINDOW_MODE_INCLUDE_INFERIORS;
+      const uint32_t create_picture_val = XCB_SUBWINDOW_MODE_CLIP_BY_CHILDREN;
 
       xcb_render_pictvisual_t *window_pictvisual =
 	xcb_render_util_find_visual_format(_render_conf.pict_formats,

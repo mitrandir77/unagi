@@ -18,6 +18,7 @@
 
 #include <dlfcn.h>
 #include <string.h>
+#include <stdlib.h>
 
 #include "plugin.h"
 #include "structs.h"

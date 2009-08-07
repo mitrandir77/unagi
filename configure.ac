@@ -1,6 +1,6 @@
 #-*- Autoconf -*-
 
-AC_PREREQ([2.63])
+AC_PREREQ([2.61])
 AC_INIT([pcompmgr],
 	[0.1],
 	[Arnaud Fontaine <arnau@mini-dweeb.org])

@@ -7,8 +7,8 @@ pcompmgr_SOURCES = display.c 	\
 	event.c 		\
 	window.c 		\
 	atoms.c 		\
-	experiment.c 		\
 	util.c 			\
+	key.c 			\
 	plugin.c		\
 	plugin_common.c		\
 	rendering.c		\
