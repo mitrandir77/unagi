@@ -28,6 +28,7 @@
 #include "window.h"
 #include "rendering.h"
 #include "plugin.h"
+#include "atoms.h"
 
 typedef struct _display_extensions_t
 {
@@ -48,6 +49,13 @@ typedef struct _conf_t
   bool do_repaint;
   cfg_t *cfg;
   xcb_key_symbols_t *keysyms;
+
+  struct
+  {
+    xcb_ewmh_get_atoms_reply_t value;
+    xcb_get_property_cookie_t cookie;
+    bool initialised;
+  } atoms_supported;
 
   char *rendering_dir;
   void *rendering_dlhandle;

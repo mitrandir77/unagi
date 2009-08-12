@@ -247,10 +247,12 @@ opacity_event_handle_property_notify(xcb_property_notify_event_t *event,
 
   assert(opacity_window);
 
-  /* Send a GetProperty request, but free existing one if any */
+  /* Send  a  GetProperty  request  if  the property  value  has  been
+     updated, but free existing one if any */
   _opacity_free_property_reply(opacity_window);
 
-  opacity_window->cookie = _opacity_get_property(window->id);
+  if(event->state == XCB_PROPERTY_NEW_VALUE)
+    opacity_window->cookie = _opacity_get_property(window->id);
       
   /* Force redraw of the window as the opacity has changed */
   window->damaged = true;

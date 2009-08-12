@@ -34,5 +34,7 @@ extern const xcb_atom_t *background_properties_atoms[];
 void atoms_init(void);
 bool atoms_init_finalise(void);
 bool atoms_is_background_atom(const xcb_atom_t);
+void atoms_update_supported(const xcb_property_notify_event_t *);
+bool atoms_is_supported(const xcb_atom_t);
 
 #endif

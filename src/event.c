@@ -592,6 +592,10 @@ event_handle_property_notify(void *data __attribute__((unused)),
       globalconf.do_repaint = true;
     }
 
+  /* Update _NET_SUPPORTED value */
+  if(event->atom == _NET_SUPPORTED)
+    atoms_update_supported(event);
+
   /* As plugins  requirements are  only atoms, if  the plugin  did not
      meet the requirements on startup, it can try again... */
   window_t *window = window_list_get(event->window);

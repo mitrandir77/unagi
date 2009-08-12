@@ -104,6 +104,9 @@ atoms_init_finalise(void)
       free(atom_reply);
     }
 
+  globalconf.atoms_supported.cookie =
+    xcb_ewmh_get_supported_unchecked(globalconf.connection);
+
   return true;
 
  init_atoms_error: 
@@ -123,6 +126,49 @@ atoms_is_background_atom(const xcb_atom_t atom)
 {
   for(int atom_n = 0; background_properties_atoms[atom_n]; atom_n++)
     if(atom == *background_properties_atoms[atom_n])
+      return true;
+
+  return false;
+}
+
+void
+atoms_update_supported(const xcb_property_notify_event_t *event)
+{
+  if(globalconf.atoms_supported.initialised)
+    {
+      xcb_ewmh_get_atoms_reply_wipe(&globalconf.atoms_supported.value);
+      globalconf.atoms_supported.initialised = false;
+      globalconf.atoms_supported.cookie.sequence = 0;
+    }
+
+  if(event->state == XCB_PROPERTY_NEW_VALUE)
+    globalconf.atoms_supported.cookie =
+      xcb_ewmh_get_supported_unchecked(globalconf.connection);
+}
+
+bool
+atoms_is_supported(const xcb_atom_t atom)
+{
+  /* Get the _NET_SUPPORTED  reply if a request has  been sent but not
+     already processed */
+  if(globalconf.atoms_supported.cookie.sequence != 0)
+    {
+      if(globalconf.atoms_supported.initialised)
+	xcb_ewmh_get_atoms_reply_wipe(&globalconf.atoms_supported.value);
+
+      if(!xcb_ewmh_get_supported_reply(globalconf.connection,
+				       globalconf.atoms_supported.cookie,
+				       &globalconf.atoms_supported.value,
+				       NULL))
+	return false;
+
+      globalconf.atoms_supported.initialised = true;
+    }
+  else if(!globalconf.atoms_supported.initialised)
+    return false;
+
+  for(uint32_t atom_n = 0; atom_n < globalconf.atoms_supported.value.atoms_len; atom_n++)
+    if(globalconf.atoms_supported.value.atoms[atom_n] == atom)
       return true;
 
   return false;

@@ -256,6 +256,9 @@ _expose_update_atoms_values(_expose_atoms_t *atoms,
 static bool
 expose_check_requirements(void)
 {
+  if(!atoms_is_supported(_NET_CLIENT_LIST))
+    return false;
+
   _expose_update_atoms_values(&_expose_global.atoms, &_expose_global.slots);
   if(!_expose_global.atoms.client_list)
     return false;
