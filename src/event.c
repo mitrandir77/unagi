@@ -306,6 +306,20 @@ event_handle_key_release(void *data __attribute__((unused)),
   return 0;
 }
 
+static int
+event_handle_button_release(void *data __attribute__((unused)),
+			    xcb_connection_t *c __attribute__((unused)),
+			    xcb_button_release_event_t *event)
+{
+  debug("ButtonRelease: detail=%ju, event=%jx, state=%jx",
+	(uintmax_t) event->detail, (uintmax_t) event->event,
+	(uintmax_t) event->state);
+
+  PLUGINS_EVENT_HANDLE(event, button_release, window_list_get(event->event));
+
+  return 0;
+}
+
 /** Handler for CirculateNotify events  reported when a window changes
  *  its position in the stack (either  Top if the window is now on top
  *  of all siblings or Bottom)
@@ -660,6 +674,9 @@ event_init_handlers(void)
 
   xcb_event_set_key_release_handler(&globalconf.evenths,
 				    event_handle_key_release, NULL);
+
+  xcb_event_set_button_release_handler(&globalconf.evenths,
+				       event_handle_button_release, NULL);
 
   xcb_event_set_circulate_notify_handler(&globalconf.evenths,
 					 event_handle_circulate_notify, NULL);

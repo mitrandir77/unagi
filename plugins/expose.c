@@ -28,7 +28,7 @@
  *  should be improved to decrease the blurry effect.
  *
  *  It relies  on _NET_CLIENT_LIST  (required otherwise the  plugin is
- *  disabled)     and    _NET_ACTIVE_WINDOW    atoms     (stored    in
+ *  disabled) and _NET_ACTIVE_WINDOW atoms (required too and stored in
  *  '_expose_global.atoms' structure) to  get respectively the clients
  *  managed  by the  window manager  and the  current  focused window.
  *  These atoms values are updated in a lazy way (e.g.  by sending the
@@ -197,9 +197,9 @@ _expose_free_slots(_expose_window_slot_t **slots)
 }
 
 /** Update   the    values   of   _NET_CLIENT_LIST    (required)   and
- *  _NET_ACTIVE_WINDOW (optional) if the GetProperty has been sent but
+ *  _NET_ACTIVE_WINDOW (required) if the GetProperty has been sent but
  *  not  already  retrieved  (thus  on  plugin  initialisation  or  on
- *  PropertyNotify event).  This function also frees the  slots if the
+ *  PropertyNotify event).  This function  also frees the slots if the
  *  clients list has to be updated
  *
  * \param atoms Atoms information
@@ -209,48 +209,35 @@ static void
 _expose_update_atoms_values(_expose_atoms_t *atoms,
 			    _expose_window_slot_t **slots)
 {
-  if(atoms->client_list_cookie.sequence)
-    {
-      if(!atoms->client_list)
-	atoms->client_list = calloc(1, sizeof(xcb_ewmh_get_windows_reply_t));
-
-      if(!xcb_ewmh_get_client_list_reply(globalconf.connection,
-					 atoms->client_list_cookie,
-					 atoms->client_list,
-					 NULL))
-	{
-	  warn("Can't get _NET_CLIENT_LIST: plugin disabled for now");
-	  util_free(&atoms->client_list);
-	}
-      else
-	_expose_free_slots(slots);
-    
-      /* Reset the cookie sequence for the next request */
-      atoms->client_list_cookie.sequence = 0;
+#define CHECK_REQUIRED_ATOM(kind, kind_type, atom_name)		\
+  if(atoms->kind##_cookie.sequence)				\
+    {								\
+      if(!atoms->kind)						\
+	atoms->kind = calloc(1, sizeof(kind_type));		\
+    								\
+      if(!xcb_ewmh_get_##kind##_reply(globalconf.connection,	\
+				      atoms->kind##_cookie,	\
+				      atoms->kind,		\
+				      NULL))			\
+	{							\
+	  warn("Can't get atom_name: plugin disabled for now");	\
+	  util_free(&atoms->kind);				\
+	}							\
+      else							\
+	_expose_free_slots(slots);				\
+      								\
+      /* Reset the cookie sequence for the next request */	\
+      atoms->client_list_cookie.sequence = 0;			\
     }
 
-  if(atoms->active_window_cookie.sequence)
-    {
-      if(!atoms->active_window)
-	atoms->active_window = calloc(1, sizeof(xcb_window_t));
-
-      if(!xcb_ewmh_get_active_window_reply(globalconf.connection,
-					   atoms->active_window_cookie,
-					   atoms->active_window,
-					   NULL))
-	{
-	  debug("Can't get _NET_ACTIVE_WINDOW");
-	  util_free(&atoms->active_window);
-	}
-
-      /* Reset the cookie sequence for the next request */
-      atoms->active_window_cookie.sequence = 0;
-    }
+  CHECK_REQUIRED_ATOM(client_list, xcb_ewmh_get_windows_reply_t, _NET_CLIENT_LIST)
+  CHECK_REQUIRED_ATOM(active_window, xcb_window_t, _NET_ACTIVE_WINDOW)
 }
 
 /** Check  whether  the plugin  can  actually  be  enabled, only  when
  *  _NET_CLIENT_LIST Atom Property has been set on the root window
  *
+ * \todo make the GrabKey completely asynchronous
  * \return true if the plugin can be enabled
  */
 static bool
@@ -260,8 +247,32 @@ expose_check_requirements(void)
     return false;
 
   _expose_update_atoms_values(&_expose_global.atoms, &_expose_global.slots);
-  if(!_expose_global.atoms.client_list)
+  if(!_expose_global.atoms.client_list || !_expose_global.atoms.active_window)
     return false;
+
+  /* Send the GrabKey request on the key given in the configuration */
+  xcb_keycode_t *keycode = keycode = xcb_key_symbols_get_keycode(globalconf.keysyms,
+								 PLUGIN_KEY);
+
+  xcb_void_cookie_t grab_key_cookie = xcb_grab_key_checked(globalconf.connection, false,
+							   globalconf.screen->root,
+							   XCB_NONE, *keycode,
+							   XCB_GRAB_MODE_ASYNC,
+							   XCB_GRAB_MODE_ASYNC);
+
+  free(keycode);
+
+  /* Check  whether the GrabKey  request succeeded,  otherwise disable
+     the plugin */
+  xcb_generic_error_t *error = xcb_request_check(globalconf.connection,
+						 grab_key_cookie);
+
+  if(error)
+    {
+      warn("Can't grab selected key");
+      free(error);
+      exit(EXIT_FAILURE);
+    }
 
   return true;
 }
@@ -733,10 +744,44 @@ _expose_plugin_enable(const uint32_t nwindows)
 
   xcb_ungrab_server(globalconf.connection);
 
+  /* Grab the pointer in an  active way to avoid EnterNotify event due
+     to the mapping hack */
+  /* TODO: improve focus handling */
+  xcb_grab_pointer_cookie_t grab_pointer_cookie =
+    xcb_grab_pointer_unchecked(globalconf.connection, true, globalconf.screen->root,
+			       XCB_EVENT_MASK_BUTTON_RELEASE, XCB_GRAB_MODE_ASYNC,
+			       XCB_GRAB_MODE_ASYNC, XCB_NONE, XCB_NONE,
+			       XCB_CURRENT_TIME);
+
+  /*  Grab the keyboard  in an  active way  to avoid  "weird" behavior
+     (e.g. being  able to type in  a window which may  be not selected
+     due  to  rescaling)  due   to  the  hack  consisting  in  mapping
+     previously unmapped windows to get their Pixmap */
+  xcb_grab_keyboard_cookie_t grab_keyboard_cookie =
+    xcb_grab_keyboard_unchecked(globalconf.connection, true, globalconf.screen->root,
+				XCB_CURRENT_TIME, XCB_GRAB_MODE_ASYNC,
+				XCB_GRAB_MODE_ASYNC);
+  
   _expose_prepare_windows(new_slots);
 
-  /* The plugin is now enabled, so paint the screen */
-  globalconf.do_repaint = true;
+  xcb_grab_pointer_reply_t *grab_pointer_reply =
+    xcb_grab_pointer_reply(globalconf.connection, grab_pointer_cookie, NULL);
+
+  xcb_grab_keyboard_reply_t *grab_keyboard_reply =
+    xcb_grab_keyboard_reply(globalconf.connection, grab_keyboard_cookie, NULL);
+
+  if(!grab_pointer_reply || grab_pointer_reply->status != XCB_GRAB_STATUS_SUCCESS ||
+     !grab_keyboard_reply || grab_keyboard_reply->status != XCB_GRAB_STATUS_SUCCESS)
+    {
+      warn("Can't grab the pointer and/or the keyboard");
+      _expose_free_slots(&new_slots);
+    }
+  else
+    /* The plugin is now enabled, so paint the screen */
+    globalconf.do_repaint = true;
+
+  free(grab_pointer_reply);
+  free(grab_keyboard_reply);
 
   return new_slots;
 }
@@ -755,7 +800,12 @@ _expose_plugin_disable(_expose_window_slot_t *slots)
     if(slot->scale_window.was_unmapped)
       window_get_invisible_window_pixmap_finalise(slot->window);
 
+  /* Now ungrab both the keyboard and the pointer */
+  xcb_ungrab_keyboard(globalconf.connection, XCB_CURRENT_TIME);
+  xcb_ungrab_pointer(globalconf.connection, XCB_CURRENT_TIME);
+
   /* Force repaint of the screen as the plugin is now disabled */
+  _expose_global.enabled = false;
   globalconf.do_repaint = true;
 }
 
@@ -772,10 +822,7 @@ expose_event_handle_key_release(xcb_key_release_event_t *event,
     return;
 
   if(_expose_global.enabled)
-    {
-      _expose_global.enabled = false;
-      _expose_plugin_disable(_expose_global.slots);
-    }
+    _expose_plugin_disable(_expose_global.slots);
   else
     {
       /* Update the  atoms values  now if it  has been changed  in the
@@ -793,6 +840,39 @@ expose_event_handle_key_release(xcb_key_release_event_t *event,
 	    warn("Couldn't create the slots");
 	  else
 	    _expose_global.enabled = true;
+	}
+    }
+}
+
+static inline bool
+_expose_in_window(const int16_t x, const int16_t y,
+		  const window_t *window)
+{
+  return x >= window->geometry->x &&
+    x < (int16_t) (window->geometry->x + window_width_with_border(window->geometry)) &&
+    y >= window->geometry->y &&
+    y < (int16_t) (window->geometry->y + window_height_with_border(window->geometry));
+}
+
+static void
+expose_event_handle_button_release(xcb_button_release_event_t *event,
+				   window_t *window __attribute__ ((unused)))
+{
+  for(uint32_t window_n = 0;
+      window_n < _expose_global.atoms.client_list->windows_len;
+      window_n++)
+    {
+      if(_expose_in_window(event->root_x, event->root_y,
+			   _expose_global.slots[window_n].scale_window.window))
+	{
+	  _expose_plugin_disable(_expose_global.slots);
+
+	  xcb_ewmh_request_change_active_window(globalconf.connection,
+						_expose_global.slots[window_n].window->id,
+						XCB_EWMH_CLIENT_SOURCE_TYPE_OTHER,
+						event->time, XCB_NONE);
+
+	  break;
 	}
     }
 }
@@ -879,6 +959,7 @@ plugin_vtable_t plugin_vtable = {
     NULL,
     NULL,
     expose_event_handle_key_release,
+    expose_event_handle_button_release,
     NULL,
     NULL,
     NULL,

@@ -171,9 +171,8 @@ window_free_pixmap(window_t *window)
 void
 window_register_notify(const window_t *window)
 {
-  /* Get transparency and keyboard notifications */
-  const uint32_t select_input_val = XCB_EVENT_MASK_KEY_RELEASE |
-    XCB_EVENT_MASK_KEY_PRESS | XCB_EVENT_MASK_PROPERTY_CHANGE;
+  /* Get transparency notifications */
+  const uint32_t select_input_val = XCB_EVENT_MASK_PROPERTY_CHANGE;
 
   xcb_change_window_attributes(globalconf.connection, window->id,
 			       XCB_CW_EVENT_MASK, &select_input_val);

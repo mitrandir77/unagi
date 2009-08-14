@@ -324,6 +324,7 @@ plugin_vtable_t plugin_vtable = {
     NULL,
     NULL,
     NULL,
+    NULL,
     opacity_event_handle_map_notify,
     NULL,
     opacity_event_handle_unmap_notify,

@@ -55,6 +55,8 @@ typedef struct
   void (*key_press) (xcb_key_press_event_t *, window_t *);
   /** KeyRelease event */
   void (*key_release) (xcb_key_release_event_t *, window_t *);
+  /** ButtonRelease event */
+  void (*button_release) (xcb_button_release_event_t *, window_t *);
   /** CirculateNotify event */
   void (*circulate) (xcb_circulate_notify_event_t *, window_t *);
   /** ConfigureNotify event */
