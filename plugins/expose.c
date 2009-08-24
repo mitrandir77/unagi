@@ -67,6 +67,8 @@
 #include <string.h>
 #include <stdlib.h>
 
+#include <X11/keysym.h>
+
 #include <xcb/xcb.h>
 #include <xcb/xcb_ewmh.h>
 #include <xcb/xcb_keysyms.h>
@@ -209,30 +211,30 @@ static void
 _expose_update_atoms_values(_expose_atoms_t *atoms,
 			    _expose_window_slot_t **slots)
 {
-#define CHECK_REQUIRED_ATOM(kind, kind_type, atom_name)		\
-  if(atoms->kind##_cookie.sequence)				\
-    {								\
-      if(!atoms->kind)						\
-	atoms->kind = calloc(1, sizeof(kind_type));		\
-    								\
-      if(!xcb_ewmh_get_##kind##_reply(globalconf.connection,	\
-				      atoms->kind##_cookie,	\
-				      atoms->kind,		\
-				      NULL))			\
-	{							\
-	  warn("Can't get atom_name: plugin disabled for now");	\
-	  util_free(&atoms->kind);				\
-	}							\
-      else							\
-	_expose_free_slots(slots);				\
-      								\
-      /* Reset the cookie sequence for the next request */	\
-      atoms->client_list_cookie.sequence = 0;			\
+#define CHECK_REQUIRED_ATOM(kind, kind_type, atom_name)			\
+  if(atoms->kind##_cookie.sequence)					\
+    {									\
+      if(!atoms->kind)							\
+	atoms->kind = calloc(1, sizeof(kind_type));			\
+									\
+      if(!xcb_ewmh_get_##kind##_reply(globalconf.connection,		\
+				      atoms->kind##_cookie,		\
+				      atoms->kind,			\
+				      NULL))				\
+	{								\
+	  warn("Can't get %s: plugin disabled for now", #atom_name);	\
+	  util_free(&atoms->kind);					\
+	}								\
+      else								\
+	_expose_free_slots(slots);					\
+									\
+      /* Reset the cookie sequence for the next request */		\
+      atoms->kind##_cookie.sequence = 0;				\
     }
 
   CHECK_REQUIRED_ATOM(client_list, xcb_ewmh_get_windows_reply_t, _NET_CLIENT_LIST)
-  CHECK_REQUIRED_ATOM(active_window, xcb_window_t, _NET_ACTIVE_WINDOW)
-}
+    CHECK_REQUIRED_ATOM(active_window, xcb_window_t, _NET_ACTIVE_WINDOW)
+    }
 
 /** Check  whether  the plugin  can  actually  be  enabled, only  when
  *  _NET_CLIENT_LIST Atom Property has been set on the root window
@@ -301,7 +303,7 @@ _expose_window_need_rescaling(xcb_rectangle_t *slot_extents,
  * \return The newly allocated slots
  */
 static _expose_window_slot_t *
-_expose_create_slots(const uint32_t nwindows)
+_expose_create_slots(const uint32_t nwindows, unsigned int *nwindows_per_strip)
 {
   _expose_window_slot_t *new_slots = calloc(nwindows + 1, sizeof(_expose_window_slot_t));
   if(!new_slots)
@@ -316,8 +318,7 @@ _expose_create_slots(const uint32_t nwindows)
     ((globalconf.screen->height_in_pixels - STRIP_SPACING * (strips_nb + 1)) / strips_nb);
 
   /* The number of windows per strip depends */
-  const unsigned int nwindows_per_strip = (unsigned int)
-    ceilf((float) nwindows / (float) strips_nb);
+  *nwindows_per_strip = (unsigned int) ceilf((float) nwindows / (float) strips_nb);
 
   int16_t current_y = STRIP_SPACING, current_x;
 
@@ -333,7 +334,7 @@ _expose_create_slots(const uint32_t nwindows)
       /* Number of slots for this strip which depends on the number of
 	 remaining slots (the last strip may contain less windows) */
       const unsigned int strip_slots_n =
-	(nwindows - slot_n > nwindows_per_strip ? nwindows_per_strip : nwindows - slot_n);
+	(nwindows - slot_n > *nwindows_per_strip ? *nwindows_per_strip : nwindows - slot_n);
 
       /* Slot width including spacing */
       const uint16_t slot_width = (uint16_t)
@@ -365,6 +366,7 @@ _expose_create_slots(const uint32_t nwindows)
  */
 static void
 _expose_assign_windows_to_slots(const uint32_t nwindows,
+				const uint32_t nwindows_per_strip,
 				_expose_window_slot_t *slots)
 {
   struct
@@ -417,6 +419,43 @@ _expose_assign_windows_to_slots(const uint32_t nwindows,
 	}
 
       windows[window_n_nearest].window = NULL;
+    }
+
+  for(uint32_t slot_n = 0; slot_n < nwindows; slot_n += nwindows_per_strip)
+    {
+      unsigned int slot_spare_pixels = 0;
+      unsigned int slots_to_extend_n = 0;
+
+      for(uint32_t window_strip_n = 0; window_strip_n < nwindows_per_strip;
+	  window_strip_n++)
+	{
+	  if(window_width_with_border(slots[window_strip_n].window->geometry) <
+	     slots[window_strip_n].extents.width)
+	    {
+	      slot_spare_pixels += (unsigned int)
+		(slots[window_strip_n].extents.width -
+		 window_width_with_border(slots[window_strip_n].window->geometry));
+
+	      slots[window_strip_n].extents.width = window_width_with_border(slots[window_strip_n].window->geometry);
+	      slots[window_strip_n].extents.x = (int16_t) (slots[window_strip_n].extents.x + (int16_t) slot_spare_pixels);
+	    }
+	  else if(window_width_with_border(slots[window_strip_n].window->geometry) ==
+		  slots[window_strip_n].extents.width)
+	    continue;
+	  else
+	    slots_to_extend_n++;
+	}
+
+      if(slots_to_extend_n)
+	continue;
+
+      uint16_t spare_pixels_per_slot = (uint16_t) (slot_spare_pixels / slots_to_extend_n);
+
+      for(uint32_t window_strip_n = 0; window_strip_n < nwindows_per_strip;
+	  window_strip_n++)
+	if(window_width_with_border(slots[window_strip_n].window->geometry) >
+	   slots[window_strip_n].extents.width)
+	  slots[window_strip_n].extents.width = (uint16_t) (slots[window_strip_n].extents.width + spare_pixels_per_slot);
     }
 }
 
@@ -496,21 +535,23 @@ _expose_draw_scale_window_content(xcb_image_t *scale_window_image,
   const uint16_t scale_content_width = (uint16_t) (scale_window_width - border_width);
   const uint16_t scale_content_height = (uint16_t) (scale_window_height - border_width);
 
+  const bool do_pixels_around = (1.0 / ratio_rescale) <= 0.90;
+
   for(uint16_t y_scale = border_width; y_scale < scale_content_height; y_scale++)
     {
       ys = (int16_t) trunc((double) y_scale * ratio_rescale);
 
       /* Compute the minimum and maxmimum y depending on the pixel position */
-      ymin = (int16_t) (y_scale == border_width ? ys : ys - 1);
-      ymax = (int16_t) (y_scale == scale_content_height - 1 ? ys : ys + 1);
+      ymin = (int16_t) (y_scale == border_width || !do_pixels_around ? ys : ys - 1);
+      ymax = (int16_t) (y_scale == scale_content_height - 1 || !do_pixels_around ? ys : ys + 1);
 
       for(uint16_t x_scale = border_width; x_scale < scale_content_width; x_scale++)
 	{
 	  uint32_t moy[3] = { 0, 0, 0 };
 
 	  xs = (int16_t) trunc((double) x_scale * ratio_rescale);
-	  xmin = (int16_t) (x_scale == border_width ? xs : xs - 1);
-	  xmax = (int16_t) (x_scale == scale_content_width - 1 ? xs : xs + 1);
+	  xmin = (int16_t) (x_scale == border_width || !do_pixels_around ? xs : xs - 1);
+	  xmax = (int16_t) (x_scale == scale_content_width - 1 || !do_pixels_around ? xs : xs + 1);
 
 	  uint32_t weight = 0;
 
@@ -719,11 +760,14 @@ _expose_prepare_windows(_expose_window_slot_t *slots)
 static _expose_window_slot_t *
 _expose_plugin_enable(const uint32_t nwindows)
 {
-  _expose_window_slot_t *new_slots = _expose_create_slots(nwindows);
+  unsigned int nwindows_per_strip;
+
+  _expose_window_slot_t *new_slots = _expose_create_slots(nwindows,
+							  &nwindows_per_strip);
   if(!new_slots)
     return NULL;
 
-  _expose_assign_windows_to_slots(nwindows, new_slots);
+  _expose_assign_windows_to_slots(nwindows, nwindows_per_strip, new_slots);
 
   xcb_grab_server(globalconf.connection);
 
