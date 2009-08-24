@@ -23,7 +23,7 @@
 #include "structs.h"
 
 void
-util_lock_mask_get_reply(xcb_get_modifier_mapping_cookie_t cookie)
+key_lock_mask_get_reply(xcb_get_modifier_mapping_cookie_t cookie)
 {
   xcb_get_modifier_mapping_reply_t *modmap_r;
   xcb_keycode_t *modmap, kc;
@@ -68,7 +68,7 @@ util_lock_mask_get_reply(xcb_get_modifier_mapping_cookie_t cookie)
 }
 
 xcb_keysym_t
-util_key_getkeysym(const xcb_keycode_t detail, const uint16_t state)
+key_getkeysym(const xcb_keycode_t detail, const uint16_t state)
 {
   xcb_keysym_t k0, k1;
 

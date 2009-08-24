@@ -862,7 +862,7 @@ static void
 expose_event_handle_key_release(xcb_key_release_event_t *event,
 				window_t *window __attribute__((unused)))
 {
-  if(util_key_getkeysym(event->detail, event->state) != PLUGIN_KEY)
+  if(key_getkeysym(event->detail, event->state) != PLUGIN_KEY)
     return;
 
   if(_expose_global.enabled)

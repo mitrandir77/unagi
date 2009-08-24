@@ -254,7 +254,7 @@ main(int argc, char **argv)
 
   /* First check whether there is already a Compositing Manager (ICCCM) */
   xcb_get_selection_owner_cookie_t wm_cm_owner_cookie =
-    xcb_ewmh_get_wm_cm_owner_unchecked(globalconf.connection);
+    xcb_ewmh_get_wm_cm_owner(globalconf.connection);
 
   /**
    * Second round-trip
@@ -328,7 +328,7 @@ main(int argc, char **argv)
      don't meet the requirements */
   plugin_check_requirements();
 
-  util_lock_mask_get_reply(key_mapping_cookie);
+  key_lock_mask_get_reply(key_mapping_cookie);
 
   /* Initialise normal errors and events handlers */
   event_init_handlers();

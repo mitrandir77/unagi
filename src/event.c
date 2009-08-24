@@ -650,7 +650,7 @@ event_handle_mapping_notify(void *data __attribute__((unused)),
   xcb_key_symbols_free(globalconf.keysyms);
   globalconf.keysyms = xcb_key_symbols_alloc(globalconf.connection);
 
-  util_lock_mask_get_reply(key_mapping_cookie);
+  key_lock_mask_get_reply(key_mapping_cookie);
 
   return 0;
 }
