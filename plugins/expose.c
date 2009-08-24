@@ -436,7 +436,7 @@ _expose_assign_windows_to_slots(const uint32_t nwindows,
       windows[window_n_nearest].window = NULL;
     }
 
-  /* Adjust slot width according to the window size
+  /** Adjust slot width according to the window size
    * \todo Should also handle the window resize to optimize slot width
    */
   for(uint32_t slot_n = 0; slot_n < nwindows; slot_n += nwindows_per_strip)
@@ -500,25 +500,25 @@ _expose_draw_scale_window_border(xcb_image_t *scale_window_image,
 {
   const uint32_t border_pixel = xcb_image_get_pixel(window_image, 0, 0);
 
-  for(uint16_t x = 0; x < scale_window_width - 1; x++)
+  for(uint16_t x = 0; x < scale_window_width; x++)
     {
       /* Draw horizontal top border */
       for(uint16_t y = 0; y < border_width; y++)
 	xcb_image_put_pixel(scale_window_image, x, y, border_pixel);
 
       /* Draw horizontal bottom border */
-      for (uint16_t y = (uint16_t) (scale_window_height - 1); y >= scale_window_height - border_width; y--)
+      for(uint16_t y = (uint16_t) (scale_window_height - 1); y >= scale_window_height - border_width; y--)
 	xcb_image_put_pixel(scale_window_image, x, y, border_pixel);
     }
       
-  for(uint16_t y = 0; y < scale_window_height - 1; y++)
+  for(uint16_t y = 0; y < scale_window_height; y++)
     {
       /* Draw left vertical border */
-      for (uint16_t x = 0; x < border_width; x++)
+      for(uint16_t x = 0; x < border_width; x++)
 	xcb_image_put_pixel(scale_window_image, x, y, border_pixel);
 
       /* Draw right vertival border */
-      for (uint16_t x = (uint16_t) (scale_window_width - 1); x >= scale_window_width - border_width; x--)
+      for(uint16_t x = (uint16_t) (scale_window_width - 1); x >= scale_window_width - border_width; x--)
 	xcb_image_put_pixel(scale_window_image, x, y, border_pixel);
     }
 }
@@ -805,16 +805,19 @@ _expose_plugin_enable(const uint32_t nwindows)
 	slot->scale_window.was_unmapped = true;
       }
 
-  /* Process MapNotify event to get the NameWindowPixmap */
+  /** Process MapNotify event to get the NameWindowPixmap
+   *  \todo get only MapNotify? */
   xcb_aux_sync(globalconf.connection);
-  /* TODO: get only MapNotify? */
+  
   xcb_event_poll_for_event_loop(&globalconf.evenths);
 
   xcb_ungrab_server(globalconf.connection);
 
-  /* Grab the pointer in an  active way to avoid EnterNotify event due
-     to the mapping hack */
-  /* TODO: improve focus handling */
+  /** Grab the pointer in an  active way to avoid EnterNotify event due
+   *  to the mapping hack
+   *
+   *  \todo improve focus handling
+   */
   xcb_grab_pointer_cookie_t grab_pointer_cookie =
     xcb_grab_pointer_unchecked(globalconf.connection, true, globalconf.screen->root,
 			       XCB_EVENT_MASK_BUTTON_RELEASE, XCB_GRAB_MODE_ASYNC,

@@ -34,7 +34,7 @@
 #include "plugin.h"
 #include "atoms.h"
 
-/** Hold information related to the X extension
+/** Hold information related to the X extension */
 typedef struct _display_extensions_t
 {
   /** The Composite extension information */
