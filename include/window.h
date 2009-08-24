@@ -16,6 +16,10 @@
  *  <http://www.gnu.org/licenses/>.
  */
 
+/** \file
+ *  \brief Windows management
+ */
+
 #ifndef WINDOW_H
 #define WINDOW_H
 

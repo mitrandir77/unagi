@@ -16,6 +16,10 @@
  *  <http://www.gnu.org/licenses/>.
  */
 
+/** \file
+ *  \brief Windows management
+ */
+
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
@@ -277,6 +281,11 @@ window_get_pixmap(const window_t *window)
   return pixmap;
 }
 
+/** Check whether the window is visible within the screen geometry
+ *
+ * \param window The window object
+ * \return true if the window is visible
+ */
 bool
 window_is_visible(const window_t *window)
 {
@@ -287,6 +296,13 @@ window_is_visible(const window_t *window)
 	  window->geometry->y < globalconf.screen->height_in_pixels);
 }
 
+/** Send ChangeWindowAttributes  request to set  the override-redirect
+ *  flag  on the  given window  to define  whether the  window manager
+ *  should take care of the window or not
+ *
+ * \param window The window object
+ * \param do_override_redirect The value to set to override-redirect flag
+ */
 static inline void
 window_set_override_redirect(const window_t *window,
 			     const uint32_t do_override_redirect)
@@ -297,6 +313,14 @@ window_set_override_redirect(const window_t *window,
 			       &do_override_redirect);
 }
 
+/** Get  the Pixmap associated  with a  previously unmapped  window by
+ *  simply mapping  it and setting override-redirect to  true to avoid
+ *  the  window manager managing  it anymore.   This function  is only
+ *  relevant for plugins which may  want to get the Pixmap of unmapped
+ *  windows
+ *
+ * \param window The window object to get the Pixmap from
+ */
 void
 window_get_invisible_window_pixmap(window_t *window)
 {
@@ -312,6 +336,12 @@ window_get_invisible_window_pixmap(window_t *window)
   xcb_map_window(globalconf.connection, window->id);
 }
 
+/** This  function must  be called  on  each window  object which  was
+ *  previously  unmapped once  the plugin  is not  enabled  anymore to
+ *  restore the state before the plugin was run
+ *
+ * \param window The window object to act on
+ */
 void
 window_get_invisible_window_pixmap_finalise(window_t *window)
 {
@@ -512,6 +542,11 @@ window_restack(window_t *window, xcb_window_t window_new_above_id)
     }
 }
 
+/** Paint all windows  on the screen by calling  the rendering backend
+ *  hooks (not all windows may be painted though)
+ *
+ * \param windows The list of windows currently managed
+ */
 void
 window_paint_all(window_t *windows)
 {

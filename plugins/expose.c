@@ -16,8 +16,8 @@
  *  <http://www.gnu.org/licenses/>.
  */
 
-/** Expose plugin:
- *  ==============
+/** \file
+ *  \brief Exposé effect plugin
  *
  *  This plugin implements (roughly) Expose  feature as seen in Mac OS
  *  X and Compiz  (known as Scale plugin) but  is not really optimised
@@ -82,7 +82,14 @@
 #include "util.h"
 #include "key.h"
 
+/** Activation Keysym
+ * \todo Remove
+ */
 #define PLUGIN_KEY XK_F12
+
+/** Spacing between thumbnails
+ * \todo Remove
+ */
 #define STRIP_SPACING 10
 
 /** Weights values apply  to pixels around a given  pixel value (whose
@@ -129,18 +136,24 @@ typedef struct
 /** Atoms required for this plugin */
 typedef struct
 {
-  /** _NET_CLIENT_LIST atom cookie and value */
+  /** _NET_CLIENT_LIST atom cookie */
   xcb_get_property_cookie_t client_list_cookie;
+  /** _NET_CLIENT_LIST atom value */
   xcb_ewmh_get_windows_reply_t *client_list;
-  /** _NET_ACTIVE_WINDOW atom cookie and value */
+  /** _NET_ACTIVE_WINDOW atom cookie */
   xcb_get_property_cookie_t active_window_cookie;
+  /** _NET_ACTIVE_WINDOW atom value */
   xcb_window_t *active_window;
 } _expose_atoms_t;
 
+/** Global variables of this plugin */
 static struct
 {
+  /** Is the plugin enabled */
   bool enabled;
+  /** Atoms structure */
   _expose_atoms_t atoms;
+  /** Slots for thumbnails */
   _expose_window_slot_t *slots;
 } _expose_global;
 
@@ -233,8 +246,8 @@ _expose_update_atoms_values(_expose_atoms_t *atoms,
     }
 
   CHECK_REQUIRED_ATOM(client_list, xcb_ewmh_get_windows_reply_t, _NET_CLIENT_LIST)
-    CHECK_REQUIRED_ATOM(active_window, xcb_window_t, _NET_ACTIVE_WINDOW)
-    }
+  CHECK_REQUIRED_ATOM(active_window, xcb_window_t, _NET_ACTIVE_WINDOW)
+}
 
 /** Check  whether  the plugin  can  actually  be  enabled, only  when
  *  _NET_CLIENT_LIST Atom Property has been set on the root window
@@ -300,6 +313,7 @@ _expose_window_need_rescaling(xcb_rectangle_t *slot_extents,
  *  square root of the number of windows
  *
  * \param nwindows The number of windows
+ * \param nwindows_per_strip The number of windows per strip
  * \return The newly allocated slots
  */
 static _expose_window_slot_t *
@@ -362,6 +376,7 @@ _expose_create_slots(const uint32_t nwindows, unsigned int *nwindows_per_strip)
  *  distance between the center of the slot and the window
  *
  * \param nwindows The number of windows
+ * \param nwindows_per_strip The number of windows per strip
  * \param slots The slots where the window will be assign
  */
 static void
@@ -421,14 +436,20 @@ _expose_assign_windows_to_slots(const uint32_t nwindows,
       windows[window_n_nearest].window = NULL;
     }
 
+  /* Adjust slot width according to the window size
+   * \todo Should also handle the window resize to optimize slot width
+   */
   for(uint32_t slot_n = 0; slot_n < nwindows; slot_n += nwindows_per_strip)
     {
+      /* Number of spare pixels */
       unsigned int slot_spare_pixels = 0;
+      /* Number of slots to extend */
       unsigned int slots_to_extend_n = 0;
 
       for(uint32_t window_strip_n = 0; window_strip_n < nwindows_per_strip;
 	  window_strip_n++)
 	{
+	  /* Set the slot width to the window one if the window is smaller */
 	  if(window_width_with_border(slots[window_strip_n].window->geometry) <
 	     slots[window_strip_n].extents.width)
 	    {
@@ -439,13 +460,16 @@ _expose_assign_windows_to_slots(const uint32_t nwindows,
 	      slots[window_strip_n].extents.width = window_width_with_border(slots[window_strip_n].window->geometry);
 	      slots[window_strip_n].extents.x = (int16_t) (slots[window_strip_n].extents.x + (int16_t) slot_spare_pixels);
 	    }
+	  /* Don't do anything if the window is of the same size */
 	  else if(window_width_with_border(slots[window_strip_n].window->geometry) ==
 		  slots[window_strip_n].extents.width)
 	    continue;
+	  /* Number of slots which are going to be extended */
 	  else
 	    slots_to_extend_n++;
 	}
 
+      /* If there is no slot to extend, don't do anything */
       if(slots_to_extend_n)
 	continue;
 
@@ -510,7 +534,7 @@ _expose_draw_scale_window_border(xcb_image_t *scale_window_image,
  * \param ratio_rescale The invert of the rescaling ratio
  * \param window_image The original window Image
  * \param window_width The original window width including border
- * \param window_width The original window height including border
+ * \param window_height The original window height including border
  * \param border_width Window border with
  */
 static void
@@ -783,7 +807,7 @@ _expose_plugin_enable(const uint32_t nwindows)
 
   /* Process MapNotify event to get the NameWindowPixmap */
   xcb_aux_sync(globalconf.connection);
-  /* TODO: get only MapNotify */
+  /* TODO: get only MapNotify? */
   xcb_event_poll_for_event_loop(&globalconf.evenths);
 
   xcb_ungrab_server(globalconf.connection);
@@ -797,7 +821,7 @@ _expose_plugin_enable(const uint32_t nwindows)
 			       XCB_GRAB_MODE_ASYNC, XCB_NONE, XCB_NONE,
 			       XCB_CURRENT_TIME);
 
-  /*  Grab the keyboard  in an  active way  to avoid  "weird" behavior
+  /* Grab  the keyboard  in an  active way  to avoid  "weird" behavior
      (e.g. being  able to type in  a window which may  be not selected
      due  to  rescaling)  due   to  the  hack  consisting  in  mapping
      previously unmapped windows to get their Pixmap */
@@ -888,6 +912,13 @@ expose_event_handle_key_release(xcb_key_release_event_t *event,
     }
 }
 
+/** Check whether the given window is within the given coordinates
+ *
+ * \param x The x coordinate
+ * \param y The y coordinate
+ * \param window The window object to check for coordinates
+ * \return true if the given window is in the given coordinates
+ */
 static inline bool
 _expose_in_window(const int16_t x, const int16_t y,
 		  const window_t *window)
@@ -898,6 +929,11 @@ _expose_in_window(const int16_t x, const int16_t y,
     y < (int16_t) (window->geometry->y + window_height_with_border(window->geometry));
 }
 
+/** Handle X  ButtonRelease event used  when the user choose  a window
+ *  among all the thumbnails displayed by the plugin
+ *
+ * \param event The X buttonRelease event
+ */
 static void
 expose_event_handle_button_release(xcb_button_release_event_t *event,
 				   window_t *window __attribute__ ((unused)))
@@ -921,6 +957,12 @@ expose_event_handle_button_release(xcb_button_release_event_t *event,
     }
 }
 
+/** Convenient  function to  handle X  PropertyNotify event  common to
+ *  _NET_CLIENT_LIST and _NET_ACTIVE_WINDOW
+ *
+ * \param get_property_func The function used to send the request to update the atom
+ * \param cookie The cookie relative to the request
+ */
 static inline void
 _expose_do_event_handle_property_notify(xcb_get_property_cookie_t (*get_property_func) (xcb_connection_t *),
 					xcb_get_property_cookie_t *cookie)
@@ -939,6 +981,7 @@ _expose_do_event_handle_property_notify(xcb_get_property_cookie_t (*get_property
  *  not needed yet)
  *
  * \todo Perhaps it should be handle in the core code for the root window
+ * \todo Check the event state
  * \param event The X PropertyNotify event
  */
 static void
@@ -957,7 +1000,7 @@ expose_event_handle_property_notify(xcb_property_notify_event_t *event,
 /** If the plugin is enabled, update the scaled Pixmap and then return
  *  the scaled windows objects
  *
- * \return The scaled windows list
+ * \return The beginning of the scaled windows list
  */
 static window_t *
 expose_render_windows(void)

@@ -16,8 +16,10 @@
  *  <http://www.gnu.org/licenses/>.
  */
 
-/** Rendering backends architecture:
- *  ================================
+/** \file
+ *  \brief Rendering backend
+ *
+ * Rendering backends architecture:
  *
  *  For obvious reasons, only one  rendering backend is enabled at the
  *  same  time and  is only  a layer  on top  of the  actual rendering

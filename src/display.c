@@ -16,6 +16,10 @@
  *  <http://www.gnu.org/licenses/>.
  */
 
+/** \file
+ *  \brief Display management run on startup
+ */
+
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
@@ -37,8 +41,11 @@
 /** Structure   holding   cookies   for   QueryVersion   requests   of
     extensions */
 typedef struct {
+  /** XFixes QueryVersion request cookie */
   xcb_xfixes_query_version_cookie_t xfixes;
+  /** Damage QueryVersion request cookie */
   xcb_damage_query_version_cookie_t damage;
+  /** Composite QueryVersion request cookie */
   xcb_composite_query_version_cookie_t composite;
 }  init_extensions_cookies_t;
 

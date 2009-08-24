@@ -16,6 +16,10 @@
  *  <http://www.gnu.org/licenses/>.
  */
 
+/** \file
+ *  \brief Plugins helpers common to effects plugins and rendering backends
+ */
+
 #include <dlfcn.h>
 #include <stdio.h>
 #include <string.h>

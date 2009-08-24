@@ -16,6 +16,10 @@
  *  <http://www.gnu.org/licenses/>.
  */
 
+/** \file
+ *  \brief Display management run on startup
+ */
+
 #ifndef INIT_DISPLAY_H
 #define INIT_DISPLAY_H
 

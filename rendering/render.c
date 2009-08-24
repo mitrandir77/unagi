@@ -16,6 +16,10 @@
  *  <http://www.gnu.org/licenses/>.
  */
 
+/** \file
+ *  \brief Rendering backend based on X Render extension
+ */
+
 #include <stdlib.h>
 #include <stdbool.h>
 #include <assert.h>
@@ -346,7 +350,8 @@ render_reset_background(void)
   _render_init_root_background();
 }
 
-/** Create the alpha Picture associated with a window
+/** Create the alpha Picture associated  with a window by only filling
+ *  it with the alpha channel value
  *
  * \param alpha_picture The alpha Picture of the Window
  * \param opacity The Window opacity

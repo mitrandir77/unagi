@@ -16,6 +16,10 @@
  *  <http://www.gnu.org/licenses/>.
  */
 
+/** \file
+ *  \brief Plugins helpers common to effects plugins and rendering backends
+ */
+
 #ifndef PLUGIN_COMMON_H
 #define PLUGIN_COMMON_H
 

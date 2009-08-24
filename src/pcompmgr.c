@@ -16,6 +16,10 @@
  *  <http://www.gnu.org/licenses/>.
  */
 
+/** \file
+ *  \brief Main file
+ */
+
 #include <stdio.h>
 #include <unistd.h>
 #include <signal.h>
@@ -47,6 +51,11 @@
 
 conf_t globalconf;
 
+/** Parse the configuration file with confuse
+ *
+ * \param config_fp The configuration file stream
+ * \return Return true if parsing succeeded
+ */
 static bool
 parse_configuration_file(FILE *config_fp)
 {
@@ -63,6 +72,7 @@ parse_configuration_file(FILE *config_fp)
   return true;
 }
 
+/** Display help information */
 static inline void
 display_help(void)
 {
@@ -74,6 +84,11 @@ display_help(void)
   -p, --plugins-path PATH   plugins path\n");
 }
 
+/** Parse command line parameters
+ *
+ * \param argc The number of command line parameters
+ * \param argv The strings list of arguments
+ */
 static void
 parse_command_line_parameters(int argc, char **argv)
 {
@@ -136,6 +151,7 @@ parse_command_line_parameters(int argc, char **argv)
 	fatal("Can't open configuration file");
     }
 
+  /* Parse configuration file */
   if(!parse_configuration_file(config_fp))
     {
       fclose(config_fp);
@@ -328,6 +344,7 @@ main(int argc, char **argv)
      don't meet the requirements */
   plugin_check_requirements();
 
+  /* Get the lock masks reply of the request previously sent */ 
   key_lock_mask_get_reply(key_mapping_cookie);
 
   /* Initialise normal errors and events handlers */

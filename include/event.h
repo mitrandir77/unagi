@@ -16,6 +16,10 @@
  *  <http://www.gnu.org/licenses/>.
  */
 
+/** \file
+ *  \brief X events management
+ */
+
 #ifndef EVENTS_H
 #define EVENTS_H
 

@@ -16,8 +16,10 @@
  *  <http://www.gnu.org/licenses/>.
  */
 
-/** General Plugins architecture:
- *  =============================
+/** \file
+ *  \brief Effects plugins
+ *
+ *  General Plugins architecture:
  *
  *  Several plugins  may be loaded at  the same time.   Each plugin is
  *  defined in a 'plugin_t' structure holding the virtual table of the
@@ -31,8 +33,8 @@
  *  function pointers in this structure.
  *
  *  NOTE: On  startup, the constructor routine  (dlopen()) should only
- *  allocate memory but not send  any request as this would be usually
- *  done by 'window_manage_existing' hook.
+ *  allocate  memory but  not  send any  X  request as  this would  be
+ *  usually done by 'window_manage_existing' hook.
  */
 
 #ifndef PLUGIN_H
@@ -88,6 +90,7 @@ typedef struct
   void (*window_manage_existing)(const int, window_t **);
   /** Hook to get the opacity of the given window */
   uint16_t (*window_get_opacity)(const window_t *);
+  /** Hook to allow plugins to provide their own windows */
   window_t *(*render_windows)(void);
 } plugin_vtable_t;
 
@@ -100,7 +103,9 @@ typedef struct _plugin_t
   bool enable;
   /** Plugin virtual table */
   plugin_vtable_t *vtable;
+  /** Pointer to the previous plugin */
   struct _plugin_t *prev;
+  /** Pointer to the next plugin */
   struct _plugin_t *next;
 } plugin_t;
 

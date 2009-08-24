@@ -16,6 +16,10 @@
  *  <http://www.gnu.org/licenses/>.
  */
 
+/** \file
+ *  \brief Key bindings management
+ */
+
 #ifndef KEY_H
 #define KEY_H
 

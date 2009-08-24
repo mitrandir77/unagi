@@ -16,6 +16,10 @@
  *  <http://www.gnu.org/licenses/>.
  */
 
+/** \file
+ *  \brief Atoms management
+ */
+
 #ifndef ATOMS_H
 #define ATOMS_H
 

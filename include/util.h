@@ -16,6 +16,10 @@
  *  <http://www.gnu.org/licenses/>.
  */
 
+/** \file
+ *  \brief Miscellaneous helpers not related to X
+ */
+
 #ifndef UTIL_H
 #define UTIL_H
 

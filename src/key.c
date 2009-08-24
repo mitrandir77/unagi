@@ -1,5 +1,7 @@
 /*
  * Copyright (C) 2009 Arnaud "arnau" Fontaine <arnau@mini-dweeb.org>
+ * Copyright (C) 2008-2009 Julien Danjou <julien@danjou.info>
+ * Copyright (C) 2008 Pierre Habouzit <madcoder@debian.org>
  *
  * This  program is  free  software: you  can  redistribute it  and/or
  * modify  it under the  terms of  the GNU  General Public  License as
@@ -16,12 +18,22 @@
  *  <http://www.gnu.org/licenses/>.
  */
 
+/** \file
+ *  \brief Key bindings management
+ */
+
 #include <stdlib.h>
 #include <string.h>
 
 #include "key.h"
 #include "structs.h"
 
+/** Set  the  keyboard  masks  from  a  previously  GetModifierMapping
+ *  request sent (from awesome code)
+ *
+ * \todo Should it be merged into xcb-util library?
+ * \param cookie The GetModifierMapping request cookie
+ */
 void
 key_lock_mask_get_reply(xcb_get_modifier_mapping_cookie_t cookie)
 {
@@ -67,6 +79,14 @@ key_lock_mask_get_reply(xcb_get_modifier_mapping_cookie_t cookie)
   free(modmap_r);
 }
 
+/** Get the  KeySym from a  KeyCode according to its  state (generally
+ *  provided by a KeyRelease/KeyPress event)
+ *
+ * \see xproto for further details
+ * \param detail The KeyCode
+ * \param state The current keyboard state
+ * \return The KeySym associated with the given KeyCode and state
+ */
 xcb_keysym_t
 key_getkeysym(const xcb_keycode_t detail, const uint16_t state)
 {

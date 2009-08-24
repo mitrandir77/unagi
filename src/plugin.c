@@ -16,6 +16,10 @@
  *  <http://www.gnu.org/licenses/>.
  */
 
+/** \file
+ *  \brief Effects plugins management
+ */
+
 #include <dlfcn.h>
 #include <string.h>
 #include <stdlib.h>
@@ -87,6 +91,7 @@ plugin_load_all(void)
     }
 }
 
+/** Enable the plugin if it meets the requirements */
 void
 plugin_check_requirements(void)
 {
@@ -110,9 +115,11 @@ plugin_search_by_name(const char *name)
   return NULL;
 }
 
-/** Unload the given plugin and free the associated memory
+/** Unload  the  given  plugin  and  free  the  associated  memory  if
+ *  specified
  *
  * \param plugin A pointer to the plugin to be freed
+ * \param do_update_list Should the general plugins list be updated
  */
 void
 plugin_unload(plugin_t **plugin, const bool do_update_list)
@@ -129,7 +136,7 @@ plugin_unload(plugin_t **plugin, const bool do_update_list)
   free(*plugin);
 }
 
-/** Unload all the plugins and their memory */
+/** Unload all the plugins and their allocated memory */
 void
 plugin_unload_all(void)
 {

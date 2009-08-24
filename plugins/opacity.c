@@ -16,8 +16,8 @@
  *  <http://www.gnu.org/licenses/>.
  */
 
-/** Opacity plugin:
- *  ===============
+/** \file
+ *  \brief Opacity effect plugin
  *
  *  This  plugin handles windows  opacity.  It  relies on  a structure
  *  containing,  for   each  mapped  (or   viewable)  'window_t',  its
@@ -40,13 +40,19 @@
 #include "window.h"
 #include "atoms.h"
 
+/** Opaque opacity value */
 #define OPACITY_OPAQUE 0xffffffff
 
+/** Hold global variables of this plugin */
 typedef struct _opacity_window_t
 {
+  /** The list of windows with opacity */
   window_t *window;
+  /** The GetProperty request cookie for this window */
   xcb_get_property_cookie_t cookie;
+  /** Opacity value */
   uint32_t opacity;
+  /** Pointer to the next window with opacity set */
   struct _opacity_window_t *next;
 } opacity_window_t;
 

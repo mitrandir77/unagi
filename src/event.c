@@ -16,6 +16,10 @@
  *  <http://www.gnu.org/licenses/>.
  */
 
+/** \file
+ *  \brief X events management
+ */
+
 #include <stdlib.h>
 
 #include <xcb/xcb.h>

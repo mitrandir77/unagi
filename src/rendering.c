@@ -16,6 +16,10 @@
  *  <http://www.gnu.org/licenses/>.
  */
 
+/** \file
+ *  \brief Rendering backends management
+ */
+
 #include <dlfcn.h>
 
 #include "rendering.h"
@@ -57,6 +61,7 @@ rendering_load(void)
   return true;
 }
 
+/** Unload the rendering backend */
 void
 rendering_unload(void)
 {

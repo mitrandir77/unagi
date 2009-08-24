@@ -16,6 +16,10 @@
  *  <http://www.gnu.org/licenses/>.
  */
 
+/** \file
+ *  \brief Miscellaneous helpers not related to X
+ */
+
 #include <stdarg.h>
 #include <string.h>
 #include <stdlib.h>

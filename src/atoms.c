@@ -16,6 +16,10 @@
  *  <http://www.gnu.org/licenses/>.
  */
 
+/** \file
+ *  \brief Atoms management
+ */
+
 #include <stdint.h>
 #include <stdbool.h>
 #include <assert.h>
@@ -36,9 +40,13 @@ xcb_atom_t _XSETROOT_ID;
 /** Structure defined on purpose to be able to send all the InternAtom
     requests */
 typedef struct {
+  /** Pointer to the atom XID declared above */
   xcb_atom_t *value;
+  /** InternAtom request cookie */
   xcb_intern_atom_cookie_t cookie;
+  /** Length of the Atom string name */
   uint8_t name_len;
+  /** Atom string name */
   char *name;
 } atom_t;
 
@@ -131,6 +139,11 @@ atoms_is_background_atom(const xcb_atom_t atom)
   return false;
 }
 
+/** On  receiving a  X  PropertyNotify for  _NET_SUPPORTED, its  value
+ *  should be updated accordingly
+ *
+ * \param event The X PropertyNotify event received
+ */
 void
 atoms_update_supported(const xcb_property_notify_event_t *event)
 {
@@ -146,6 +159,13 @@ atoms_update_supported(const xcb_property_notify_event_t *event)
       xcb_ewmh_get_supported_unchecked(globalconf.connection);
 }
 
+/** Check whether the  given atom is actually supported  by the window
+ *  manager  thanks to  _NET_SUPPORTED  atom keeps  up-to-date by  the
+ *  window manager itself
+ *
+ * \param atom The Atom to look for
+ * \return true if the Atom is supported
+ */
 bool
 atoms_is_supported(const xcb_atom_t atom)
 {
@@ -153,6 +173,7 @@ atoms_is_supported(const xcb_atom_t atom)
      already processed */
   if(globalconf.atoms_supported.cookie.sequence != 0)
     {
+      /* Free existing value if needed */
       if(globalconf.atoms_supported.initialised)
 	xcb_ewmh_get_atoms_reply_wipe(&globalconf.atoms_supported.value);
 
