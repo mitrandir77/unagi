@@ -52,7 +52,7 @@ AC_SUBST(EXPOSE_PLUGIN_LIBS)
 
 # Checks for header files
 AC_CHECK_HEADERS([stdint.h stdlib.h string.h])
-AC_CHECK_HEADERS([X11/keysym.h X11/XF86keysym.h], []
+AC_CHECK_HEADERS([X11/keysym.h X11/XF86keysym.h], [],
 		 [AC_MSG_ERROR([Need Xlib headers related to keyboard])], [])
 
 # Checks for typedefs, structures, and compiler characteristics
