@@ -5,6 +5,7 @@ AC_INIT([pcompmgr],
 	[0.1],
 	[Arnaud Fontaine <arnau@mini-dweeb.org])
 
+AC_CONFIG_MACRO_DIR([m4])
 AM_INIT_AUTOMAKE
 AM_MAINTAINER_MODE
 
@@ -51,6 +52,8 @@ AC_SUBST(EXPOSE_PLUGIN_LIBS)
 
 # Checks for header files
 AC_CHECK_HEADERS([stdint.h stdlib.h string.h])
+AC_CHECK_HEADERS([X11/keysym.h X11/XF86keysym.h], []
+		 [AC_MSG_ERROR([Need Xlib headers related to keyboard])], [])
 
 # Checks for typedefs, structures, and compiler characteristics
 AC_HEADER_STDBOOL
