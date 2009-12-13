@@ -1,0 +1,25 @@
+Please    refer    to    INSTALL    file    concerning    installation
+instructions. Once you have built  the program, you can run it without
+installing anything  by typing the  following command from  the source
+directory:
+
+./src/pcompmgr  -r rendering/.libs/ -p plugins/.libs/ -c pcompmgr.conf
+
+At the moment,  only Awesome has been tested, you  may want to install
+it in order to test the program.
+
+You may  find the program  documentation in doc/ directory  in various
+format (HTML, LaTeX and man pages).
+
+Xephyr
+======
+
+You may  want to use Xephyr (nested  X server) as the  software is not
+really stable (yet):
+
+Xephyr -screen 1024x768 -ac -br :1
+
+Then  run  the  command  given  in  the  previous  section  by  adding
+DISPLAY=:1 at the beginning. You  may want to run other X applications
+(such as  Awesome window manager)  by adding DISPLAY=:1 like  the main
+program.
