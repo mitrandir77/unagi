@@ -1,7 +1,7 @@
 #-*- Autoconf -*-
 
 AC_PREREQ([2.61])
-AC_INIT([pcompmgr],
+AC_INIT([unagi],
 	[0.1],
 	[Arnaud Fontaine <arnau@mini-dweeb.org])
 

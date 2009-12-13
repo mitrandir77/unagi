@@ -1,9 +1,9 @@
 INCLUDES = $(DEPS_CFLAGS) -I$(top_srcdir)/include
-pcompmgr_LDADD = $(DEPS_LIBS) -ldl
-pcompmgr_LDFLAGS = -rdynamic
-bin_PROGRAMS = pcompmgr
+unagi_LDADD = $(DEPS_LIBS) -ldl
+unagi_LDFLAGS = -rdynamic
+bin_PROGRAMS = unagi
 
-pcompmgr_SOURCES = display.c 	\
+unagi_SOURCES = display.c 	\
 	event.c 		\
 	window.c 		\
 	atoms.c 		\
@@ -12,4 +12,4 @@ pcompmgr_SOURCES = display.c 	\
 	plugin.c		\
 	plugin_common.c		\
 	rendering.c		\
-	pcompmgr.c
+	unagi.c

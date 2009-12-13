@@ -3,7 +3,7 @@ instructions. Once you have built  the program, you can run it without
 installing anything  by typing the  following command from  the source
 directory:
 
-./src/pcompmgr  -r rendering/.libs/ -p plugins/.libs/ -c pcompmgr.conf
+./src/unagi  -r rendering/.libs/ -p plugins/.libs/ -c unagi.conf
 
 At the moment,  only Awesome has been tested, you  may want to install
 it in order to test the program.
