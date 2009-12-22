@@ -179,7 +179,10 @@ atoms_is_supported(const xcb_atom_t atom)
     {
       /* Free existing value if needed */
       if(globalconf.atoms_supported.initialised)
-        xcb_ewmh_get_atoms_reply_wipe(&globalconf.atoms_supported.value);
+        {
+          globalconf.atoms_supported.initialised = false;
+          xcb_ewmh_get_atoms_reply_wipe(&globalconf.atoms_supported.value);
+        }
 
       if(!xcb_ewmh_get_supported_reply(&globalconf.ewmh,
 				       globalconf.atoms_supported.cookie,
