@@ -611,7 +611,7 @@ event_handle_property_notify(void *data __attribute__((unused)),
     }
 
   /* Update _NET_SUPPORTED value */
-  if(event->atom == _NET_SUPPORTED)
+  if(event->atom == globalconf.ewmh._NET_SUPPORTED)
     atoms_update_supported(event);
 
   /* As plugins  requirements are  only atoms, if  the plugin  did not

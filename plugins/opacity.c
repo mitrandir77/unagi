@@ -69,7 +69,8 @@ static xcb_get_property_cookie_t
 _opacity_get_property(xcb_window_t window_id)
 {
   return xcb_get_property_unchecked(globalconf.connection, 0, window_id,
-				    _NET_WM_WINDOW_OPACITY, CARDINAL, 0, 1);
+				    _NET_WM_WINDOW_OPACITY, XCB_ATOM_CARDINAL,
+                                    0, 1);
 }
 
 /** Get the  reply of the previously  sent request to  get the opacity
@@ -88,7 +89,7 @@ _opacity_get_property_reply(xcb_get_property_cookie_t cookie)
 
   /* If the reply is not valid  or there was an error, then the window
      is considered as opaque */
-  if(!reply || reply->type != CARDINAL || reply->format != 32 ||
+  if(!reply || reply->type != XCB_ATOM_CARDINAL || reply->format != 32 ||
      !xcb_get_property_value_length(reply))
     opacity = OPACITY_OPAQUE;
   else

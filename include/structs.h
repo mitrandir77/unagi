@@ -26,6 +26,7 @@
 #include <xcb/xcb.h>
 #include <xcb/xcb_event.h>
 #include <xcb/xcb_keysyms.h>
+#include <xcb/xcb_ewmh.h>
 
 #include <confuse.h>
 
@@ -54,6 +55,8 @@ typedef struct _conf_t
   int screen_nbr;
   /** The screen information */
   xcb_screen_t *screen;
+  /** EWMH-related information */
+  xcb_ewmh_connection_t ewmh;
   /** The X extensions information */
   display_extensions_t extensions;
   /** Registered event handlers as provided by xcb-event */

@@ -22,6 +22,7 @@ PKG_CHECK_MODULES(DEPS, [
 	  libconfuse
 
 	  xcb >= 1.4
+	  xcb-proto >= 1.6	
 	  xcb-composite
 	  xcb-xfixes
 	  xcb-damage
@@ -95,7 +96,6 @@ then
 fi
 
 AC_SUBST(XDG_CONFIG_DIR)
-
 AC_SUBST(CFLAGS)
 
 AC_CONFIG_FILES([Makefile

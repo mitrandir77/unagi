@@ -197,6 +197,9 @@ exit_cleanup(void)
   /* Free resources related to the keymaps */
   xcb_key_symbols_free(globalconf.keysyms);
 
+  /* Free resources related to EWMH */
+  xcb_ewmh_connection_wipe(&globalconf.ewmh);
+
   cfg_free(globalconf.cfg);
   free(globalconf.rendering_dir);
   free(globalconf.plugins_dir);
@@ -247,7 +250,7 @@ main(int argc, char **argv)
    */
 
   /* Send requests for EWMH atoms initialisation */
-  atoms_init();
+  xcb_intern_atom_cookie_t *ewmh_cookies = atoms_init();
 
   parse_command_line_parameters(argc, argv);
 
@@ -262,15 +265,20 @@ main(int argc, char **argv)
 
   /* Pre-initialisation of the rendering backend */
   if(!rendering_load())
-    fatal("Can't initialise rendering backend");
+    {
+      free(ewmh_cookies);
+      fatal("Can't initialise rendering backend");
+    }
 
   /* Get replies for EWMH atoms initialisation */
-  if(!atoms_init_finalise())
+  if(!atoms_init_finalise(ewmh_cookies))
+    /* No need to  free ewmh_cookies in case of  error as it's already
+       handles by xcb-ewmh when getting the replies */
     fatal("Cannot initialise atoms");
 
   /* First check whether there is already a Compositing Manager (ICCCM) */
   xcb_get_selection_owner_cookie_t wm_cm_owner_cookie =
-    xcb_ewmh_get_wm_cm_owner(globalconf.connection);
+    xcb_ewmh_get_wm_cm_owner(&globalconf.ewmh, globalconf.screen_nbr);
 
   /**
    * Second round-trip
@@ -284,7 +292,7 @@ main(int argc, char **argv)
 
   /* Check ownership for WM_CM_Sn before actually claiming it (ICCCM) */
   xcb_window_t wm_cm_owner_win;
-  if(xcb_ewmh_get_wm_cm_owner_reply(globalconf.connection, wm_cm_owner_cookie,
+  if(xcb_ewmh_get_wm_cm_owner_reply(&globalconf.ewmh, wm_cm_owner_cookie,
 				    &wm_cm_owner_win, NULL) &&
      wm_cm_owner_win != XCB_NONE)
     fatal("A compositing manager is already active (window=%jx)",

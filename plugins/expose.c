@@ -174,10 +174,12 @@ expose_constructor(void)
      whose replies will  be got when actually calling  the function to
      check atoms which are required */
   _expose_global.atoms.client_list_cookie =
-    xcb_ewmh_get_client_list_unchecked(globalconf.connection);
+    xcb_ewmh_get_client_list_unchecked(&globalconf.ewmh,
+                                       globalconf.screen_nbr);
 
   _expose_global.atoms.active_window_cookie =
-    xcb_ewmh_get_active_window_unchecked(globalconf.connection);
+    xcb_ewmh_get_active_window_unchecked(&globalconf.ewmh,
+                                         globalconf.screen_nbr);
 }
 
 /** Free all the allocated slots
@@ -230,7 +232,7 @@ _expose_update_atoms_values(_expose_atoms_t *atoms,
       if(!atoms->kind)							\
 	atoms->kind = calloc(1, sizeof(kind_type));			\
 									\
-      if(!xcb_ewmh_get_##kind##_reply(globalconf.connection,		\
+      if(!xcb_ewmh_get_##kind##_reply(&globalconf.ewmh,                 \
 				      atoms->kind##_cookie,		\
 				      atoms->kind,			\
 				      NULL))				\
@@ -258,7 +260,7 @@ _expose_update_atoms_values(_expose_atoms_t *atoms,
 static bool
 expose_check_requirements(void)
 {
-  if(!atoms_is_supported(_NET_CLIENT_LIST))
+  if(!atoms_is_supported(globalconf.ewmh._NET_CLIENT_LIST))
     return false;
 
   _expose_update_atoms_values(&_expose_global.atoms, &_expose_global.slots);
@@ -950,7 +952,7 @@ expose_event_handle_button_release(xcb_button_release_event_t *event,
 	{
 	  _expose_plugin_disable(_expose_global.slots);
 
-	  xcb_ewmh_request_change_active_window(globalconf.connection,
+	  xcb_ewmh_request_change_active_window(&globalconf.ewmh, globalconf.screen_nbr,
 						_expose_global.slots[window_n].window->id,
 						XCB_EWMH_CLIENT_SOURCE_TYPE_OTHER,
 						event->time, XCB_NONE);
@@ -967,7 +969,7 @@ expose_event_handle_button_release(xcb_button_release_event_t *event,
  * \param cookie The cookie relative to the request
  */
 static inline void
-_expose_do_event_handle_property_notify(xcb_get_property_cookie_t (*get_property_func) (xcb_connection_t *),
+_expose_do_event_handle_property_notify(xcb_get_property_cookie_t (*get_property_func) (xcb_ewmh_connection_t *, int),
 					xcb_get_property_cookie_t *cookie)
 {
   /* If a request has already  been sent without being retrieved, just
@@ -975,7 +977,7 @@ _expose_do_event_handle_property_notify(xcb_get_property_cookie_t (*get_property
   if(cookie->sequence)
     free(xcb_get_property_reply(globalconf.connection, *cookie, NULL));
 
-  *cookie = (*get_property_func)(globalconf.connection);
+  *cookie = (*get_property_func)(&globalconf.ewmh, globalconf.screen_nbr);
 }				  
 
 /** When  receiving  PropertyNotify   of  either  _NET_CLIENT_LIST  or
@@ -991,11 +993,11 @@ static void
 expose_event_handle_property_notify(xcb_property_notify_event_t *event,
 				    window_t *window __attribute__((unused)))
 {
-  if(event->atom == _NET_CLIENT_LIST)
+  if(event->atom == globalconf.ewmh._NET_CLIENT_LIST)
     _expose_do_event_handle_property_notify(xcb_ewmh_get_client_list_unchecked,
 					    &_expose_global.atoms.client_list_cookie);
 
-  else if(event->atom == _NET_ACTIVE_WINDOW)
+  else if(event->atom == globalconf.ewmh._NET_ACTIVE_WINDOW)
     _expose_do_event_handle_property_notify(xcb_ewmh_get_active_window_unchecked,
 					    &_expose_global.atoms.active_window_cookie);
 }				    

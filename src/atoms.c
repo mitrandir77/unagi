@@ -71,17 +71,20 @@ const xcb_atom_t *background_properties_atoms[] = {
   NULL
 };
 
-/** Send InternAtom requests to get the Atoms X identifiers */
-void
+/** Send InternAtom requests to get the Atoms X identifiers
+ *
+ * @return The EWMH InternAtom cookies
+ */
+xcb_intern_atom_cookie_t *
 atoms_init(void)
 {
-  xcb_ewmh_init_atoms_list(globalconf.connection, globalconf.screen_nbr);
-
   for(int atom_n = 0; atom_n < atoms_list_len; atom_n++)
     atoms_list[atom_n].cookie = xcb_intern_atom_unchecked(globalconf.connection,
 							  false,
 							  atoms_list[atom_n].name_len,
 							  atoms_list[atom_n].name);
+
+  return xcb_ewmh_init_atoms(globalconf.connection, &globalconf.ewmh);
 }
 
 /** Get  replies  to  the  previously sent  InternAtom  request.  This
@@ -91,9 +94,9 @@ atoms_init(void)
  * \return true on success, false otherwise
  */
 bool
-atoms_init_finalise(void)
+atoms_init_finalise(xcb_intern_atom_cookie_t *ewmh_cookies)
 {
-  if(!xcb_ewmh_init_atoms_list_replies(globalconf.connection, NULL))
+  if(!xcb_ewmh_init_atoms_replies(&globalconf.ewmh, ewmh_cookies, NULL))
     goto init_atoms_error;
 
   xcb_intern_atom_reply_t *atom_reply;
@@ -113,7 +116,8 @@ atoms_init_finalise(void)
     }
 
   globalconf.atoms_supported.cookie =
-    xcb_ewmh_get_supported_unchecked(globalconf.connection);
+    xcb_ewmh_get_supported_unchecked(&globalconf.ewmh,
+                                     globalconf.screen_nbr);
 
   return true;
 
@@ -156,7 +160,7 @@ atoms_update_supported(const xcb_property_notify_event_t *event)
 
   if(event->state == XCB_PROPERTY_NEW_VALUE)
     globalconf.atoms_supported.cookie =
-      xcb_ewmh_get_supported_unchecked(globalconf.connection);
+      xcb_ewmh_get_supported_unchecked(&globalconf.ewmh, globalconf.screen_nbr);
 }
 
 /** Check whether the  given atom is actually supported  by the window
@@ -175,9 +179,9 @@ atoms_is_supported(const xcb_atom_t atom)
     {
       /* Free existing value if needed */
       if(globalconf.atoms_supported.initialised)
-	xcb_ewmh_get_atoms_reply_wipe(&globalconf.atoms_supported.value);
+        xcb_ewmh_get_atoms_reply_wipe(&globalconf.atoms_supported.value);
 
-      if(!xcb_ewmh_get_supported_reply(globalconf.connection,
+      if(!xcb_ewmh_get_supported_reply(&globalconf.ewmh,
 				       globalconf.atoms_supported.cookie,
 				       &globalconf.atoms_supported.value,
 				       NULL))

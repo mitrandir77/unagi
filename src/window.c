@@ -25,7 +25,8 @@
 #include <string.h>
 #include <assert.h>
 
-#include <xcb/xcb_atom.h>
+#include <xcb/xcb.h>
+#include <xcb/xproto.h>
 #include <xcb/composite.h>
 
 #include <xcb/xcb_aux.h>
@@ -226,7 +227,7 @@ window_get_root_background_pixmap_finalise(void)
 			       root_background_cookies[background_property_n],
 			       NULL);
 
-      if(root_property_reply && root_property_reply->type == PIXMAP &&
+      if(root_property_reply && root_property_reply->type == XCB_ATOM_PIXMAP &&
 	 (xcb_get_property_value_length(root_property_reply)) == 4)
 	{
 	  memcpy(&root_background_pixmap,

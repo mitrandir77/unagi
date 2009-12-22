@@ -8,8 +8,8 @@ Before building  and installing  this program, you  need at  least the
 following libraries:
 
 * Main XCB libraries:
- - xcb-proto (>= 1.5)
- - libxcb (>= 1.2)
+ - xcb-proto (>= 1.6)
+ - libxcb (>= 1.4)
  - libxcb-composite
  - libxcb-xfixes
  - libxcb-damage
@@ -40,7 +40,7 @@ apt-get install xcb-proto libxcb1 libxcb-composite0-dev libxcb-xfixes0-dev \
 libxcb-ewmh has not been released yet  so you may find it there at the
 moment (branch xcb-ewmh):
 
-git clone git://git.mini-dweeb.org/arnau/xcb-util
+git clone git://people.freedesktop.org/~arnau/xcb-util.git/
 
 Basic Installation
 ==================

@@ -26,7 +26,7 @@
 #include <stdbool.h>
 
 #include <xcb/xcb.h>
-#include <xcb/xcb_atom.h>
+#include <xcb/xproto.h>
 #include <xcb/xcb_ewmh.h>
 
 extern xcb_atom_t _NET_WM_WINDOW_OPACITY;
@@ -35,8 +35,8 @@ extern xcb_atom_t _XSETROOT_ID;
 
 extern const xcb_atom_t *background_properties_atoms[];
 
-void atoms_init(void);
-bool atoms_init_finalise(void);
+xcb_intern_atom_cookie_t *atoms_init(void);
+bool atoms_init_finalise(xcb_intern_atom_cookie_t *ewmh_cookies);
 bool atoms_is_background_atom(const xcb_atom_t);
 void atoms_update_supported(const xcb_property_notify_event_t *);
 bool atoms_is_supported(const xcb_atom_t);

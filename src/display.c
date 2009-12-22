@@ -189,11 +189,12 @@ display_event_set_owner_property(void *data __attribute__((unused)),
   debug("Set _NET_WM_CM_Sn ownership");
 
   /* Set ownership on _NET_WM_CM_Sn giving the Compositing Manager window */
-  xcb_ewmh_set_wm_cm_owner(globalconf.connection, globalconf.cm_window,
-			   event->time, 0, 0);
+  xcb_ewmh_set_wm_cm_owner(&globalconf.ewmh, globalconf.screen_nbr,
+                           globalconf.cm_window, event->time, 0, 0);
 
   /* Send request to check whether the ownership succeeded */
-  _get_wm_cm_owner_cookie = xcb_ewmh_get_wm_cm_owner_unchecked(globalconf.connection);
+  _get_wm_cm_owner_cookie = xcb_ewmh_get_wm_cm_owner_unchecked(&globalconf.ewmh,
+                                                               globalconf.screen_nbr);
 
   return 0;
 }
@@ -238,8 +239,8 @@ display_register_cm(void)
 					NULL);
 
   xcb_change_property(globalconf.connection, XCB_PROP_MODE_REPLACE,
-		      globalconf.cm_window,
-		      _NET_WM_NAME, UTF8_STRING, 8,
+		      globalconf.cm_window, globalconf.ewmh._NET_WM_NAME,
+                      globalconf.ewmh.UTF8_STRING, 8,
 		      sizeof(PACKAGE_NAME), PACKAGE_NAME);
 }
 
@@ -257,7 +258,7 @@ display_register_cm_finalise(void)
   xcb_window_t wm_cm_owner_win;
 
   /* Check whether the ownership of WM_CM_Sn succeeded */
-  return (xcb_ewmh_get_wm_cm_owner_reply(globalconf.connection, _get_wm_cm_owner_cookie,
+  return (xcb_ewmh_get_wm_cm_owner_reply(&globalconf.ewmh, _get_wm_cm_owner_cookie,
 					 &wm_cm_owner_win, NULL) &&
 	  wm_cm_owner_win == globalconf.cm_window);
 }
