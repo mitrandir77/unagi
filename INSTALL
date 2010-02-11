@@ -23,24 +23,28 @@ following libraries:
  - libxcb-event
  - libxcb-ewmh
 
-* Other libraries:
+* Other libraries and tools:
  - x11proto-core
  - libconfuse
  - libxdg-basedir (>= 1.0.0)
+ - pkg-config
 
 On Debian-like distribution (require at least testing for Debian), you
 can install these libraries by typing the following command as root:
 
 apt-get install xcb-proto libxcb1 libxcb-composite0-dev libxcb-xfixes0-dev \
 	libxcb-damage0-dev libxcb-shape0-dev libxcb-image0-dev \
-	libxcb-render0-dev libxcb-aux0-dev libxcb-keysyms0-dev \
+	libxcb-render0-dev libxcb-aux0-dev libxcb-keysyms1-dev \
 	libxcb-event1-dev x11proto-core-dev libconfuse-dev \
-	libxdg-basedir-dev	
+	libxdg-basedir-dev pkg-config
 
 libxcb-ewmh has not been released yet  so you may find it there at the
 moment (branch xcb-ewmh):
 
-git clone git://people.freedesktop.org/~arnau/xcb-util.git/
+git clone --branch xcb-ewmh git://people.freedesktop.org/~arnau/xcb-util.git/
+
+Once you  have built and installed  the library, do not  forget to run
+`ldconfig -v', which should display `libxcb-ewmh.so.1'.
 
 Basic Installation
 ==================

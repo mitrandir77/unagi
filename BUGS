@@ -1,0 +1,11 @@
+You can submit or view bugs at the following address:
+http://projects.mini-dweeb.org/projects/unagi/issues
+
+When submitting a bug report, please check the following points:
+
+ * Get the last Git version.
+ * Check the BTS.
+ * Provide  a trace  by  adding `--enable-debug'  to configure  script
+   option.
+ * If possible  and relevant,  please provide a  GDB trace  by running
+   Unagi within Xephyr as explained in README file.
