@@ -23,7 +23,7 @@
 #ifndef UTIL_H
 #define UTIL_H
 
-#include <stdbool.h>
+#include <system.h>
 
 #ifdef HAVE_SYS_TYPES_H
 # include <sys/types.h>

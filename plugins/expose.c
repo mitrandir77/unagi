@@ -62,7 +62,6 @@
  *      rescaled algorithm.
  */
 
-#include <stdbool.h>
 #include <math.h>
 #include <string.h>
 #include <stdlib.h>

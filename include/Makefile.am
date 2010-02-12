@@ -7,4 +7,5 @@ include_HEADERS = structs.h 	\
 	plugin.h		\
 	plugin_common.h		\
 	rendering.h		\
-	atoms.h
+	atoms.h			\
+	system.h

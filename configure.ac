@@ -12,6 +12,12 @@ AM_MAINTAINER_MODE
 # Checks for programs
 AC_PROG_CC
 AC_PROG_CC_C99
+
+if test "x$ac_cv_prog_cc_c99" = "xno"
+then
+  AC_MSG_ERROR("C99 compiler is required", 1)
+fi
+
 AC_PROG_INSTALL
 AC_LIBTOOL_DLOPEN
 AC_PROG_LIBTOOL
@@ -52,18 +58,20 @@ AC_SUBST(EXPOSE_PLUGIN_CFLAGS)
 AC_SUBST(EXPOSE_PLUGIN_LIBS)
 
 # Checks for header files
-AC_CHECK_HEADERS([stdint.h stdlib.h string.h])
 AC_CHECK_HEADERS([X11/keysym.h X11/XF86keysym.h], [],
-		 [AC_MSG_ERROR([Need Xlib headers related to keyboard])], [])
+		 [AC_MSG_ERROR([Require Xlib headers related to keyboard])], [])
 
 # Checks for typedefs, structures, and compiler characteristics
 AC_HEADER_STDBOOL
-AC_TYPE_UINT32_T
 AC_TYPE_SSIZE_T
-AC_C_INLINE
 
 # Checks for library functions
 AC_FUNC_ERROR_AT_LINE
+
+if test "x$ac_cv_lib_error_at_line" = "xno"
+then
+  AC_MSG_ERROR("error_at_line function is required", 1)
+fi
 
 # Rendering backends
 renderingdir=$libdir/$PACKAGE_NAME/rendering/
