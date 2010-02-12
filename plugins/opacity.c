@@ -252,7 +252,12 @@ opacity_event_handle_property_notify(xcb_property_notify_event_t *event,
       opacity_window = opacity_window->next)
     ;
 
-  assert(opacity_window);
+  /* A PropertyNotify may be  received before the MapNotify, therefore
+     the  window  may  not  be  in '_opacity_windows'  yet.  This  bug
+     happened  on  Awesome   restart  which  sends  UnmapWindow,  then
+     ChangeProperty and finally a MapWindow request (Bug #13) */
+  if(opacity_window == NULL)
+    return;
 
   /* Send  a  GetProperty  request  if  the property  value  has  been
      updated, but free existing one if any */
