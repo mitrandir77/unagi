@@ -551,7 +551,7 @@ window_restack(window_t *window, xcb_window_t window_new_above_id)
 void
 window_paint_all(window_t *windows)
 {
-#if __DEBUG__
+#ifdef __DEBUG__
   static uint32_t _paint_all_counter = 0;
 #endif
   (*globalconf.rendering->paint_background)();
