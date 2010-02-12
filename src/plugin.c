@@ -60,7 +60,7 @@ plugin_load(const char *name)
 
  plugin_load_error:
   debug("Can't load plugin %s", name);
-  fatal_no_exit(error);
+  fatal_no_exit("%s", error);
   free(new_plugin);
   return NULL;
 }

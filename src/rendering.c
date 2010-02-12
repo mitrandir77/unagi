@@ -54,7 +54,7 @@ rendering_load(void)
 
   if((error = dlerror()))
     {
-      fatal_no_exit(error);
+      fatal_no_exit("%s", error);
       return false;
     }
 

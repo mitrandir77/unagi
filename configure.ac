@@ -76,7 +76,12 @@ AC_SUBST(pluginsdir)
 CFLAGS="$CFLAGS -DPLUGINS_DIR='\"$pluginsdir\"'"
 
 # Customise tests
-CFLAGS="$CFLAGS -Werror -Wall -Wextra -Wunused-parameter -Wconversion -Wshadow -Wmissing-prototypes"
+CFLAGS="$CFLAGS -Wformat-nonliteral -Wall -Wextra -Wunused-parameter \
+	       -Wconversion -Wshadow -Wmissing-prototypes -Wchar-subscripts \
+	       -Wundef -Wshadow -Wcast-align -Wwrite-strings -Wsign-compare \
+	       -Wunused -Wno-unused-parameter -Wuninitialized -Winit-self \
+	       -Wpointer-arith -Wredundant-decls -Wno-format-zero-length \
+	       -Wmissing-format-attribute -Wstrict-prototypes"
 
 AC_ARG_ENABLE(debug,
         [  --enable-debug          enter debugging mode],
