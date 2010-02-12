@@ -510,6 +510,12 @@ event_handle_map_notify(void *data __attribute__((unused)),
 	(uintmax_t) event->event, (uintmax_t) event->window);
 
   window_t *window = window_list_get(event->window);
+  if(!window)
+    {
+      debug("Window %jx disappeared", (uintmax_t) event->window);
+      return 0;
+    }
+
   window->attributes->map_state = XCB_MAP_STATE_VIEWABLE;
 
   /* Everytime a window is mapped, a new pixmap is created */
