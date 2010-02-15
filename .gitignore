@@ -14,10 +14,12 @@ Makefile.in
 *.o
 .deps
 .libs
-pcompmgr
+src/unagi
 *.lo
 *.la
 libtool
 doc/html/
 doc/latex/
 doc/man/
+*.pc
+m4/

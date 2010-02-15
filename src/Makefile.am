@@ -1,5 +1,5 @@
-INCLUDES = $(DEPS_CFLAGS) -I$(top_srcdir)/include
-unagi_LDADD = $(DEPS_LIBS) -ldl
+INCLUDES = $(UNAGI_CFLAGS) -I$(top_srcdir)/include
+unagi_LDADD = $(UNAGI_LIBS) -ldl
 unagi_LDFLAGS = -rdynamic
 bin_PROGRAMS = unagi
 

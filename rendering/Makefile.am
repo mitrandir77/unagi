@@ -1,4 +1,4 @@
-INCLUDES = $(DEPS_CFLAGS) -I$(top_srcdir)/include
+INCLUDES = $(UNAGI_CFLAGS) -I$(top_srcdir)/include
 
 render_la_LDFLAGS = -no-undefined -module -avoid-version $(RENDER_BACKEND_LIBS)
 render_la_SOURCES = render.c

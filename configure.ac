@@ -22,24 +22,25 @@ AC_PROG_INSTALL
 AC_LIBTOOL_DLOPEN
 AC_PROG_LIBTOOL
 
+UNAGI_REQUIRES="libxdg-basedir >= 1.0.0 \
+ libconfuse \
+ xcb >= 1.4 \
+ xcb-proto >= 1.6 \
+ xcb-composite \
+ xcb-xfixes \
+ xcb-damage \
+ xcb-ewmh \
+ xcb-event \
+ xcb-aux \
+ xcb-keysyms"
+
+AC_SUBST(UNAGI_REQUIRES)
+
 # Checks for libraries
-PKG_CHECK_MODULES(DEPS, [
-	  libxdg-basedir >= 1.0.0
-	  libconfuse
+PKG_CHECK_MODULES(UNAGI, $UNAGI_REQUIRES)
 
-	  xcb >= 1.4
-	  xcb-proto >= 1.6	
-	  xcb-composite
-	  xcb-xfixes
-	  xcb-damage
-	  xcb-ewmh
-	  xcb-event
-	  xcb-aux
-	  xcb-keysyms
-])
-
-AC_SUBST(DEPS_CFLAGS)
-AC_SUBST(DEPS_LIBS)
+AC_SUBST(UNAGI_CFLAGS)
+AC_SUBST(UNAGI_LIBS)
 
 PKG_CHECK_MODULES(RENDER_BACKEND, [
 	  xcb-renderutil
@@ -115,6 +116,7 @@ AC_CONFIG_FILES([Makefile
 	include/Makefile
 	src/Makefile
 	rendering/Makefile
-	plugins/Makefile])
+	plugins/Makefile
+	unagi.pc])
 
 AC_OUTPUT
