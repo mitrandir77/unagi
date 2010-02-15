@@ -84,6 +84,18 @@ pluginsdir=$libdir/$PACKAGE_NAME/plugins/
 AC_SUBST(pluginsdir)
 CFLAGS="$CFLAGS -DPLUGINS_DIR='\"$pluginsdir\"'"
 
+# Support   XDG   base   directory   specification  to   install   the
+# configuration file
+if test -z "$XDG_CONFIG_DIR"
+then
+	XDG_CONFIG_DIR=$sysconfdir/xdg
+fi
+
+AC_SUBST(XDG_CONFIG_DIR)
+
+# Configuration file directory
+CFLAGS="$CFLAGS -DXDG_CONFIG_DIR='\"$XDG_CONFIG_DIR\"'"
+
 # Customise tests
 CFLAGS="$CFLAGS -Wformat-nonliteral -Wall -Wextra -Wunused-parameter \
 	       -Wconversion -Wshadow -Wmissing-prototypes -Wchar-subscripts \
@@ -102,14 +114,6 @@ then
    CFLAGS="$CFLAGS -ggdb -O0 -D__DEBUG__"
 fi
 
-# Support   XDG   base   directory   specification  to   install   the
-# configuration file
-if test -z "$XDG_CONFIG_DIR"
-then
-	XDG_CONFIG_DIR=$sysconfdir/xdg
-fi
-
-AC_SUBST(XDG_CONFIG_DIR)
 AC_SUBST(CFLAGS)
 
 AC_CONFIG_FILES([Makefile

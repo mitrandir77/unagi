@@ -51,6 +51,8 @@
 
 conf_t globalconf;
 
+#define CONFIG_FILENAME PACKAGE_NAME ".conf"
+
 /** Parse the configuration file with confuse
  *
  * \param config_fp The configuration file stream
@@ -142,10 +144,15 @@ parse_command_line_parameters(int argc, char **argv)
   /* Get the configuration file */
   if(!config_fp)
     {
-      xdgHandle xdg;
-      xdgInitHandle(&xdg);
-      config_fp = xdgConfigOpen(PACKAGE_NAME ".conf", "r", &xdg);
-      xdgWipeHandle(&xdg);
+      /* Look    for    the    configuration    file    in    Autoconf
+	 $sysconfigdir/xdg, then fall back on XDG if not found */
+      if((config_fp = fopen(XDG_CONFIG_DIR "/" CONFIG_FILENAME, "r")) == NULL)
+	{
+	  xdgHandle xdg;
+	  xdgInitHandle(&xdg);
+	  config_fp = xdgConfigOpen(CONFIG_FILENAME, "r", &xdg);
+	  xdgWipeHandle(&xdg);
+	}
 
       if(!config_fp)
 	fatal("Can't open configuration file");

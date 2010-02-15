@@ -9,12 +9,11 @@ following command:
 
 $ unagi
 
-If the  program cannot  find the configuration  file, you have  to set
-`XDG_CONFIG_DIRS'  environment  variable  to  the  configuration  file
-directory. For example,  if you install it in  `/usr/local/', you have
-to run the following command:
-
-$ XDG_CONFIG_DIRS=/usr/local/etc/xdg unagi
+It  will look  for  a configuration  file  in `$sysconfigdir/xdg'  (by
+default  `/usr/local/etc/xdg'), then  fallback on  the paths  given in
+`XDG_CONFIG_DIRS' (as specified in `XDG Base Directory Specification')
+if it cannot find it. You can also specified the configuration file by
+passing `-c' option.
 
 You may  find the program  documentation in doc/ directory  in various
 format (HTML, LaTeX and man pages).
