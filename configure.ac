@@ -66,14 +66,6 @@ AC_CHECK_HEADERS([X11/keysym.h X11/XF86keysym.h], [],
 AC_HEADER_STDBOOL
 AC_TYPE_SSIZE_T
 
-# Checks for library functions
-AC_FUNC_ERROR_AT_LINE
-
-if test "x$ac_cv_lib_error_at_line" = "xno"
-then
-  AC_MSG_ERROR("error_at_line function is required", 1)
-fi
-
 # Rendering backends
 renderingdir=$libdir/$PACKAGE_NAME/rendering/
 AC_SUBST(renderingdir)
