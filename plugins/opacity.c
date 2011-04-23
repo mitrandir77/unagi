@@ -33,7 +33,6 @@
 #include <stdlib.h>
 
 #include <xcb/xcb.h>
-#include <xcb/xcb_event.h>
 
 #include "structs.h"
 #include "util.h"

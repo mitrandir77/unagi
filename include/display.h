@@ -32,6 +32,7 @@ void display_init_event_handlers(void);
 void display_init_extensions(void);
 void display_init_extensions_finalise(void);
 
+void display_event_set_owner_property(xcb_property_notify_event_t *);
 void display_register_cm(void);
 bool display_register_cm_finalise(void);
 

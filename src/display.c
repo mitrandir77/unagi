@@ -28,13 +28,11 @@
 #include <xcb/xfixes.h>
 #include <xcb/damage.h>
 #include <xcb/xcb_ewmh.h>
-#include <xcb/xcb_event.h>
 #include <xcb/xcb_aux.h>
 
 #include "structs.h"
 #include "display.h"
 #include "atoms.h"
-#include "event.h"
 #include "window.h"
 #include "util.h"
 
@@ -181,10 +179,8 @@ display_init_extensions_finalise(void)
  * \see display_register_cm
  * \param event The X PropertyNotify event
  */
-static int
-display_event_set_owner_property(void *data __attribute__((unused)),
-				 xcb_connection_t *c __attribute__((unused)),
-				 xcb_property_notify_event_t *event)
+void
+display_event_set_owner_property(xcb_property_notify_event_t *event)
 {
   debug("Set _NET_WM_CM_Sn ownership");
 
@@ -195,8 +191,6 @@ display_event_set_owner_property(void *data __attribute__((unused)),
   /* Send request to check whether the ownership succeeded */
   _get_wm_cm_owner_cookie = xcb_ewmh_get_wm_cm_owner_unchecked(&globalconf.ewmh,
                                                                globalconf.screen_nbr);
-
-  return 0;
 }
 
 /** Register  Compositing   Manager,  e.g.   set   ownership  on  EMWH
@@ -233,10 +227,6 @@ display_register_cm(void)
 		    XCB_COPY_FROM_PARENT, XCB_COPY_FROM_PARENT,
 		    XCB_CW_OVERRIDE_REDIRECT | XCB_CW_EVENT_MASK,
 		    create_win_val);
-
-  xcb_event_set_property_notify_handler(&globalconf.evenths,
-					display_event_set_owner_property,
-					NULL);
 
   xcb_change_property(globalconf.connection, XCB_PROP_MODE_REPLACE,
 		      globalconf.cm_window, globalconf.ewmh._NET_WM_NAME,

@@ -80,6 +80,7 @@
 #include "atoms.h"
 #include "util.h"
 #include "key.h"
+#include "event.h"
 
 /** Activation Keysym
  * \todo Remove
@@ -810,7 +811,7 @@ _expose_plugin_enable(const uint32_t nwindows)
    *  \todo get only MapNotify? */
   xcb_aux_sync(globalconf.connection);
   
-  xcb_event_poll_for_event_loop(&globalconf.evenths);
+  event_handle_poll_loop(event_handle);
 
   xcb_ungrab_server(globalconf.connection);
 

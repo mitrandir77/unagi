@@ -142,9 +142,8 @@ error_get_request_label(const uint8_t request_major_code,
       return xcb_event_get_request_label(request_major_code);
 }
 
-/** Handler  for X  errors  after the  initialisation routines.  Every
- *  error includes an  8-bit error code.  Error codes  128 through 255
- *  are reserved for extensions.
+/** Handler for X  errors.  Every error includes an  8-bit error code.
+ *  Error codes 128 through 255 are reserved for extensions.
  *  
  *  For requests  with side-effects, the  failing resource ID  is also
  *  returned:  Colormap, Cursor,  Drawable, Font,  GContext, IDChoice,
@@ -156,10 +155,8 @@ error_get_request_label(const uint8_t request_major_code,
  * \see error_get_request_label
  * \param error The X error
  */
-static int
-event_handle_error(void *data __attribute__((unused)),
-		   xcb_connection_t *c __attribute__((unused)),
-		   xcb_generic_error_t *error)
+static void
+event_handle_error(xcb_generic_error_t *error)
 {
   /* To determine  whether the error comes from  an extension request,
      it use the 'first_error'  field of QueryExtension reply, plus the
@@ -186,60 +183,54 @@ event_handle_error(void *data __attribute__((unused)),
        error_get_request_label(error->major_code, error->minor_code),
        (uintmax_t) error->major_code, (uintmax_t) error->minor_code,
        (uintmax_t) error->resource_id, error_label);
-
-  return 0;
 }
 
-/** Handler for X errors  during initialisation (any error encountered
- *  will exit the program)
+/** Handler for X events  during initialisation (any error encountered
+ *  will exit  the program).
  *
  * \see event_handle_error
+ * \see display_event_set_owner_property
  * \param error The X error
  */
-static int
-event_handle_start_error(void *data,
-			 xcb_connection_t *c,
-			 xcb_generic_error_t *error)
-{
-  /* If the  redirection of existing windows in  the off-screen buffer
-     failed, then it means that another program has already redirected
-     the windows, certainly another compositing manager... */
-  if(error->major_code == globalconf.extensions.composite->major_opcode &&
-     error->minor_code == XCB_COMPOSITE_REDIRECT_SUBWINDOWS)
-    {
-      free(error);
-      fatal("Another compositing manager is already running");
-    }
-
-  event_handle_error(data, c, error);
-  free(error);
-  fatal("Unexpected X error during startup");
-
-  return 0;
-}
-
-/** Initialise error handlers with the given handler function */
-#define INIT_ERRORS_HANDLERS(handler)				\
-  /* Error codes 128 through 255 are reserved for extensions */	\
-  for(int err_num = 0; err_num < 256; err_num++)		\
-    xcb_event_set_error_handler(&globalconf.evenths, err_num,	\
-				handler, NULL);			\
-
-/** Initialise startup error handlers */
 void
-event_init_start_handlers(void)
+event_handle_startup(xcb_generic_event_t *event)
 {
-  INIT_ERRORS_HANDLERS(event_handle_start_error)
+  switch(XCB_EVENT_RESPONSE_TYPE(event))
+    {
+    case 0:
+      {
+	xcb_generic_error_t *error = (xcb_generic_error_t *) event;
+
+	/* If  the redirection  of  existing windows  in the  off-screen
+	   buffer failed, then it means that another program has already
+	   redirected   the  windows,   certainly  another   compositing
+	   manager... */
+	if(error->major_code == globalconf.extensions.composite->major_opcode &&
+	   error->minor_code == XCB_COMPOSITE_REDIRECT_SUBWINDOWS)
+	  {
+	    free(error);
+	    fatal("Another compositing manager is already running");
+	  }
+
+	event_handle_error(error);
+	free(error);
+	fatal("Unexpected X error during startup");
+      }
+
+      break;
+
+    case XCB_PROPERTY_NOTIFY:
+      display_event_set_owner_property((void *) event);
+      break;
+    }
 }
 
 /** Handler for DamageNotify events
  *
  * \param event The X DamageNotify event
  */
-static int
-event_handle_damage_notify(void *data __attribute__((unused)),
-			   xcb_connection_t *c __attribute__((unused)),
-			   xcb_damage_notify_event_t *event)
+static void
+event_handle_damage_notify(xcb_damage_notify_event_t *event)
 {
   debug("DamageNotify: area: %jux%ju %+jd %+jd (drawable=%jx,area=%jux%ju +%jd +%jd,geometry=%jux%ju +%jd +%jd)",
 	(uintmax_t) event->area.width, (uintmax_t) event->area.height,
@@ -256,7 +247,7 @@ event_handle_damage_notify(void *data __attribute__((unused)),
   if(!window)
     {
       debug("Window %jx has disappeared", (uintmax_t) event->drawable);
-      return 0;
+      return;
     }
 
   /* Subtract  the current  window  Damage (e.g.   set  it as  empty),
@@ -270,58 +261,44 @@ event_handle_damage_notify(void *data __attribute__((unused)),
   window->damaged = true;
 
   PLUGINS_EVENT_HANDLE(event, damage, window);
-
-  return 0;
 }
 
 /** Handler for KeyPress events reported once a key is pressed
  *
  * \param event The X KeyPress event
  */
-static int
-event_handle_key_press(void *data __attribute__((unused)),
-		       xcb_connection_t *c __attribute__((unused)),
-		       xcb_key_press_event_t *event)
+static void
+event_handle_key_press(xcb_key_press_event_t *event)
 {
   debug("KeyPress: detail=%ju, event=%jx, state=%jx",
 	(uintmax_t) event->detail, (uintmax_t) event->event,
 	(uintmax_t) event->state);
 
   PLUGINS_EVENT_HANDLE(event, key_press, window_list_get(event->event));
-
-  return 0;
 }
 
 /** Handler for KeyRelease events reported once a key is released
  *
  * \param event The X KeyRelease event
  */
-static int
-event_handle_key_release(void *data __attribute__((unused)),
-			 xcb_connection_t *c __attribute__((unused)),
-			 xcb_key_release_event_t *event)
+static void
+event_handle_key_release(xcb_key_release_event_t *event)
 {
   debug("KeyRelease: detail=%ju, event=%jx, state=%jx",
 	(uintmax_t) event->detail, (uintmax_t) event->event,
 	(uintmax_t) event->state);
 
   PLUGINS_EVENT_HANDLE(event, key_release, window_list_get(event->event));
-
-  return 0;
 }
 
-static int
-event_handle_button_release(void *data __attribute__((unused)),
-			    xcb_connection_t *c __attribute__((unused)),
-			    xcb_button_release_event_t *event)
+static void
+event_handle_button_release(xcb_button_release_event_t *event)
 {
   debug("ButtonRelease: detail=%ju, event=%jx, state=%jx",
 	(uintmax_t) event->detail, (uintmax_t) event->event,
 	(uintmax_t) event->state);
 
   PLUGINS_EVENT_HANDLE(event, button_release, window_list_get(event->event));
-
-  return 0;
 }
 
 /** Handler for CirculateNotify events  reported when a window changes
@@ -330,10 +307,8 @@ event_handle_button_release(void *data __attribute__((unused)),
  *
  * \param event The X CirculateNotify event
  */
-static int
-event_handle_circulate_notify(void *data __attribute__((unused)),
-			      xcb_connection_t *c __attribute__((unused)),
-			      xcb_circulate_notify_event_t *event)
+static void
+event_handle_circulate_notify(xcb_circulate_notify_event_t *event)
 {
   debug("CirculateNotify: event=%jx, window=%jx",
 	(uintmax_t) event->event, (uintmax_t) event->window);
@@ -357,8 +332,6 @@ event_handle_circulate_notify(void *data __attribute__((unused)),
     }
 
   PLUGINS_EVENT_HANDLE(event, circulate, window);
-
-  return 0;
 }
 
 /** Handler for ConfigureNotify events reported when a windows changes
@@ -366,10 +339,8 @@ event_handle_circulate_notify(void *data __attribute__((unused)),
  *
  * \param event The X ConfigureNotify event
  */
-static int
-event_handle_configure_notify(void *data __attribute__((unused)),
-			      xcb_connection_t *c __attribute__((unused)),
-			      xcb_configure_notify_event_t *event)
+static void
+event_handle_configure_notify(xcb_configure_notify_event_t *event)
 {
   debug("ConfigureNotify: event=%jx, window=%jx above=%jx (%jux%ju +%jd +%jd)",
 	(uintmax_t) event->event, (uintmax_t) event->window,
@@ -386,14 +357,14 @@ event_handle_configure_notify(void *data __attribute__((unused)),
 
       (*globalconf.rendering->reset_background)();
 
-      return 0;
+      return;
     }
 
   window_t *window = window_list_get(event->window);
   if(!window)
     {
       debug("No such window %jx", (uintmax_t) event->window);
-      return 0;
+      return;
     }
 
   /* Update geometry */
@@ -421,8 +392,6 @@ event_handle_configure_notify(void *data __attribute__((unused)),
   window_restack(window, event->above_sibling);
 
   PLUGINS_EVENT_HANDLE(event, configure, window);
-
-  return 0;
 }
 
 /** Handler  for  CreateNotify  event  reported  when  a  CreateWindow
@@ -432,10 +401,8 @@ event_handle_configure_notify(void *data __attribute__((unused)),
  *
  * \param event The X CreateNotify event
  */
-static int
-event_handle_create_notify(void *data __attribute__((unused)),
-			   xcb_connection_t *c __attribute__((unused)),
-			   xcb_create_notify_event_t *event)
+static void
+event_handle_create_notify(xcb_create_notify_event_t *event)
 {
   debug("CreateNotify: parent=%jx, window=%jx (%jux%ju +%jd +%jd)",
 	(uintmax_t) event->parent, (uintmax_t) event->window,
@@ -448,7 +415,7 @@ event_handle_create_notify(void *data __attribute__((unused)),
   if(!new_window)
     {
       warn("Can't create window %jx", (uintmax_t) event->window);
-      return 0;
+      return;
     }
 
   /* No need  to do  a GetGeometry request  as the window  geometry is
@@ -461,8 +428,6 @@ event_handle_create_notify(void *data __attribute__((unused)),
   new_window->geometry->border_width = event->border_width;
 
   PLUGINS_EVENT_HANDLE(event, create, new_window);
-
-  return 0;
 }
 
 /** Handler  for  DestroyNotify event  reported  when a  DestroyWindow
@@ -470,10 +435,8 @@ event_handle_create_notify(void *data __attribute__((unused)),
  *
  * \param event The X DestroyNotify event
  */
-static int
-event_handle_destroy_notify(void *data __attribute__((unused)),
-			    xcb_connection_t *c __attribute__((unused)),
-			    xcb_destroy_notify_event_t *event)
+static void
+event_handle_destroy_notify(xcb_destroy_notify_event_t *event)
 {
   debug("DestroyNotify: parent=%jx, window=%jx",
 	(uintmax_t) event->event, (uintmax_t) event->window);
@@ -482,7 +445,7 @@ event_handle_destroy_notify(void *data __attribute__((unused)),
   if(!window)
     {
       warn("Can't destroy window %jx", (uintmax_t) event->window);
-      return 0;
+      return;
     }
 
   /* If a DestroyNotify has been received, then the damage object have
@@ -492,8 +455,6 @@ event_handle_destroy_notify(void *data __attribute__((unused)),
   PLUGINS_EVENT_HANDLE(event, destroy, window);
 
   window_list_remove_window(window);
-
-  return 0;
 }
 
 /** Handler for  MapNotify event reported when a  MapWindow request is
@@ -501,10 +462,8 @@ event_handle_destroy_notify(void *data __attribute__((unused)),
  *
  * \param event The X MapNotify event
  */
-static int
-event_handle_map_notify(void *data __attribute__((unused)),
-			xcb_connection_t *c __attribute__((unused)),
-			xcb_map_notify_event_t *event)
+static void
+event_handle_map_notify(xcb_map_notify_event_t *event)
 {
   debug("MapNotify: event=%jx, window=%jx",
 	(uintmax_t) event->event, (uintmax_t) event->window);
@@ -513,7 +472,7 @@ event_handle_map_notify(void *data __attribute__((unused)),
   if(!window)
     {
       debug("Window %jx disappeared", (uintmax_t) event->window);
-      return 0;
+      return;
     }
 
   window->attributes->map_state = XCB_MAP_STATE_VIEWABLE;
@@ -525,8 +484,6 @@ event_handle_map_notify(void *data __attribute__((unused)),
   window->damaged = false;
 
   PLUGINS_EVENT_HANDLE(event, map, window);
-
-  return 0;
 }
 
 /** Handler  for ReparentNotify event  reported when  a ReparentWindow
@@ -536,10 +493,8 @@ event_handle_map_notify(void *data __attribute__((unused)),
  *
  * \param event The X ReparentNotify event
  */
-static int
-event_handle_reparent_notify(void *data __attribute__((unused)),
-			     xcb_connection_t *c __attribute__((unused)),
-			     xcb_reparent_notify_event_t *event)
+static void
+event_handle_reparent_notify(xcb_reparent_notify_event_t *event)
 {
   debug("ReparentNotify: event=%jx, window=%jx, parent=%jx",
 	(uintmax_t) event->event, (uintmax_t) event->window,
@@ -557,7 +512,7 @@ event_handle_reparent_notify(void *data __attribute__((unused)),
 
   PLUGINS_EVENT_HANDLE(event, reparent, window);
 
-  return 0;
+  return;
 }
 
 /** Handler for UnmapNotify event  reported when a UnmapWindow request
@@ -565,10 +520,8 @@ event_handle_reparent_notify(void *data __attribute__((unused)),
  *
  * \param event The X UnmapNotify event
  */
-static int
-event_handle_unmap_notify(void *data __attribute__((unused)),
-			  xcb_connection_t *c __attribute__((unused)),
-			  xcb_unmap_notify_event_t *event)
+static void
+event_handle_unmap_notify(xcb_unmap_notify_event_t *event)
 {
   debug("UnmapNotify: event=%jx, window=%jx",
 	(uintmax_t) event->event, (uintmax_t) event->window);
@@ -577,7 +530,7 @@ event_handle_unmap_notify(void *data __attribute__((unused)),
   if(!window)
     {
       warn("Window %jx disappeared", (uintmax_t) event->window);
-      return 0;
+      return;
     }
 
   /* Update window state */
@@ -588,8 +541,6 @@ event_handle_unmap_notify(void *data __attribute__((unused)),
   globalconf.do_repaint = true;
 
   PLUGINS_EVENT_HANDLE(event, unmap, window);
-
-  return 0;
 }
 
 /** Handler  for PropertyNotify event  reported when  a ChangeProperty
@@ -597,10 +548,8 @@ event_handle_unmap_notify(void *data __attribute__((unused)),
  *
  * \param event The X PropertyNotify event
  */
-static int
-event_handle_property_notify(void *data __attribute__((unused)),
-			     xcb_connection_t *c __attribute__((unused)),
-			     xcb_property_notify_event_t *event)
+static void
+event_handle_property_notify(xcb_property_notify_event_t *event)
 {
   debug("PropertyNotify: window=%jx, atom=%ju",
 	(uintmax_t) event->window, (uintmax_t) event->atom);
@@ -633,7 +582,7 @@ event_handle_property_notify(void *data __attribute__((unused)),
 	  plugin->enable = (*plugin->vtable->check_requirements)();
       }
 
-  return 0;
+  return;
 }
 
 /** Handler for  Mapping event reported  when the keyboard  mapping is
@@ -641,10 +590,8 @@ event_handle_property_notify(void *data __attribute__((unused)),
  *
  * \param event The X Mapping event
  */
-static int
-event_handle_mapping_notify(void *data __attribute__((unused)),
-			    xcb_connection_t *c __attribute__((unused)),
-			    xcb_mapping_notify_event_t *event)
+static void
+event_handle_mapping_notify(xcb_mapping_notify_event_t *event)
 {
   debug("MappingNotify: request=%ju, first_keycode=%ju, count=%ju",
 	(uintmax_t) event->request, (uintmax_t) event->first_keycode,
@@ -652,7 +599,7 @@ event_handle_mapping_notify(void *data __attribute__((unused)),
 
   if(event->request != XCB_MAPPING_MODIFIER &&
      event->request != XCB_MAPPING_KEYBOARD)
-    return 0;
+    return;
 
   xcb_get_modifier_mapping_cookie_t key_mapping_cookie =
     xcb_get_modifier_mapping_unchecked(globalconf.connection);
@@ -661,8 +608,6 @@ event_handle_mapping_notify(void *data __attribute__((unused)),
   globalconf.keysyms = xcb_key_symbols_alloc(globalconf.connection);
 
   key_lock_mask_get_reply(key_mapping_cookie);
-
-  return 0;
 }
 
 /** Initialise errors and events handlers
@@ -670,48 +615,50 @@ event_handle_mapping_notify(void *data __attribute__((unused)),
  * \see display_init_redirect
  */
 void
-event_init_handlers(void)
+event_handle(xcb_generic_event_t *event)
 {
-  INIT_ERRORS_HANDLERS(event_handle_error)
+  const uint8_t response_type = XCB_EVENT_RESPONSE_TYPE(event);
 
-  xcb_event_set_handler(&globalconf.evenths,
-			globalconf.extensions.damage->first_event + XCB_DAMAGE_NOTIFY,
-			(xcb_generic_event_handler_t) event_handle_damage_notify,
-			NULL);
+  if(response_type == 0)
+    {
+      event_handle_error((void *) event);
+      return;
+    }
+  else if(response_type == globalconf.extensions.damage->first_event + XCB_DAMAGE_NOTIFY)
+    {
+      event_handle_damage_notify((void *) event);
+      return;
+    }
 
-  xcb_event_set_key_press_handler(&globalconf.evenths,
-				  event_handle_key_press, NULL);
+  switch(response_type)
+    {
+#define EVENT(type, callback) case type: callback((void *) event); return
+      EVENT(XCB_KEY_PRESS, event_handle_key_press);
+      EVENT(XCB_KEY_RELEASE, event_handle_key_release);
+      EVENT(XCB_BUTTON_RELEASE, event_handle_button_release);
+      EVENT(XCB_CIRCULATE_NOTIFY, event_handle_circulate_notify);
+      EVENT(XCB_CONFIGURE_NOTIFY, event_handle_configure_notify);
+      EVENT(XCB_CREATE_NOTIFY, event_handle_create_notify);
+      EVENT(XCB_DESTROY_NOTIFY, event_handle_destroy_notify);
+      EVENT(XCB_MAP_NOTIFY, event_handle_map_notify);
+      EVENT(XCB_REPARENT_NOTIFY, event_handle_reparent_notify);
+      EVENT(XCB_UNMAP_NOTIFY, event_handle_unmap_notify);
+      EVENT(XCB_PROPERTY_NOTIFY, event_handle_property_notify);
+      EVENT(XCB_MAPPING_NOTIFY, event_handle_mapping_notify);
+    }
+}
 
-  xcb_event_set_key_release_handler(&globalconf.evenths,
-				    event_handle_key_release, NULL);
-
-  xcb_event_set_button_release_handler(&globalconf.evenths,
-				       event_handle_button_release, NULL);
-
-  xcb_event_set_circulate_notify_handler(&globalconf.evenths,
-					 event_handle_circulate_notify, NULL);
-
-  xcb_event_set_configure_notify_handler(&globalconf.evenths,
-					 event_handle_configure_notify, NULL);
-
-  xcb_event_set_create_notify_handler(&globalconf.evenths,
-				      event_handle_create_notify, NULL);
-
-  xcb_event_set_destroy_notify_handler(&globalconf.evenths,
-				       event_handle_destroy_notify, NULL);
-
-  xcb_event_set_map_notify_handler(&globalconf.evenths,
-				   event_handle_map_notify, NULL);
-
-  xcb_event_set_reparent_notify_handler(&globalconf.evenths,
-					event_handle_reparent_notify, NULL);
-
-  xcb_event_set_unmap_notify_handler(&globalconf.evenths,
-				     event_handle_unmap_notify, NULL);
-
-  xcb_event_set_property_notify_handler(&globalconf.evenths,
-					event_handle_property_notify, NULL);
-
-  xcb_event_set_mapping_notify_handler(&globalconf.evenths,
-				       event_handle_mapping_notify, NULL);
+/** Handle all events in the queue
+ *
+ * \param event_handler The event handler function to call for each event
+ */
+void
+event_handle_poll_loop(void (*event_handler)(xcb_generic_event_t *))
+{
+  xcb_generic_event_t *event;
+  while((event = xcb_poll_for_event(globalconf.connection)) != NULL)
+    {
+      event_handler(event);
+      free(event);
+    }
 }

@@ -24,7 +24,6 @@
 #define STRUCTS_H
 
 #include <xcb/xcb.h>
-#include <xcb/xcb_event.h>
 #include <xcb/xcb_keysyms.h>
 #include <xcb/xcb_ewmh.h>
 
@@ -59,8 +58,6 @@ typedef struct _conf_t
   xcb_ewmh_connection_t ewmh;
   /** The X extensions information */
   display_extensions_t extensions;
-  /** Registered event handlers as provided by xcb-event */
-  xcb_event_handlers_t evenths;
   /** The Window specific to the compositing manager */
   xcb_window_t cm_window;
   /** The list of all windows as objects */

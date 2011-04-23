@@ -34,7 +34,6 @@
 #include <xcb/damage.h>
 #include <xcb/xcb_ewmh.h>
 #include <xcb/xcb_aux.h>
-#include <xcb/xcb_event.h>
 #include <xcb/xcb_keysyms.h>
 
 #include <basedir.h>
@@ -266,10 +265,6 @@ main(int argc, char **argv)
   xcb_prefetch_extension_data(globalconf.connection, &xcb_damage_id);
   xcb_prefetch_extension_data(globalconf.connection, &xcb_xfixes_id);
 
-  /* Initialise errors handlers */
-  xcb_event_handlers_init(globalconf.connection, &globalconf.evenths);
-  event_init_start_handlers();
-
   /* Pre-initialisation of the rendering backend */
   if(!rendering_load())
     {
@@ -324,7 +319,7 @@ main(int argc, char **argv)
   /* Validate  errors   and  get  PropertyNotify   needed  to  acquire
      _NET_WM_CM_Sn ownership */
   xcb_aux_sync(globalconf.connection);
-  xcb_event_poll_for_event_loop(&globalconf.evenths);
+  event_handle_poll_loop(event_handle_startup);
 
   globalconf.keysyms = xcb_key_symbols_alloc(globalconf.connection);
   xcb_get_modifier_mapping_cookie_t key_mapping_cookie =
@@ -348,7 +343,7 @@ main(int argc, char **argv)
 
   /* Validate errors handlers during redirect */
   xcb_aux_sync(globalconf.connection);
-  xcb_event_poll_for_event_loop(&globalconf.evenths);
+  event_handle_poll_loop(event_handle_startup);
 
   /* Manage existing windows */
   display_init_redirect_finalise();
@@ -362,17 +357,13 @@ main(int argc, char **argv)
   /* Get the lock masks reply of the request previously sent */ 
   key_lock_mask_get_reply(key_mapping_cookie);
 
-  /* Initialise normal errors and events handlers */
-  event_init_handlers();
-
-  xcb_generic_event_t *event;
-
   /* Flush existing  requests before  the loop as  DamageNotify events
      may have been received in the meantime */
   xcb_flush(globalconf.connection);
   globalconf.do_repaint = true;
 
   /* Main event and error loop */
+  xcb_generic_event_t *event;
   do
     {
       /* Block until an event is received */
@@ -382,12 +373,12 @@ main(int argc, char **argv)
       if(xcb_connection_has_error(globalconf.connection))
 	 fatal("X connection invalid");
 
-      xcb_event_handle(&globalconf.evenths, event);
+      event_handle(event);
       free(event);
 
       /* Then process all remaining events in the queue because before
 	 painting, all the DamageNotify have to be received */
-      xcb_event_poll_for_event_loop(&globalconf.evenths);
+      event_handle_poll_loop(event_handle);
 
       /* Now paint the windows */
       if(globalconf.do_repaint)

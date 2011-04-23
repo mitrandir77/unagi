@@ -23,9 +23,12 @@
 #ifndef EVENTS_H
 #define EVENTS_H
 
+#include <xcb/xcb.h>
+
 #include "display.h"
 
-void event_init_start_handlers(void);
-void event_init_handlers(void);
+void event_handle_startup(xcb_generic_event_t *);
+void event_handle(xcb_generic_event_t *);
+void event_handle_poll_loop(void (*handler)(xcb_generic_event_t *));
 
 #endif
