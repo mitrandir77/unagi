@@ -48,6 +48,13 @@
 #include "plugin.h"
 #include "key.h"
 
+#ifdef __DEBUG__
+/*
+ * Basic painting performance benchmark using gettimeofday
+ */
+#include <sys/time.h>
+#endif
+
 conf_t globalconf;
 
 #define CONFIG_FILENAME PACKAGE_NAME ".conf"
@@ -362,6 +369,12 @@ main(int argc, char **argv)
   xcb_flush(globalconf.connection);
   globalconf.do_repaint = true;
 
+
+#ifdef __DEBUG__
+  /* Meaningful to measure painting performances */
+  double seconds_elapsed = 0.0, useconds_elapsed = 0.0;
+  unsigned int paint_counter = 1;
+#endif
   /* Main event and error loop */
   xcb_generic_event_t *event;
   do
@@ -392,11 +405,29 @@ main(int argc, char **argv)
 	  if(!windows)
 	    windows = globalconf.windows;
 
+#ifdef __DEBUG__
+          struct timeval start, end;
+          gettimeofday(&start, NULL);
+#endif /* __DEBUG__ */
 	  window_paint_all(windows);
 	  xcb_aux_sync(globalconf.connection);
+#ifdef __DEBUG__
+          gettimeofday(&end, NULL);
+
+          seconds_elapsed += (double) (end.tv_sec - start.tv_sec);
+          useconds_elapsed += (double) (end.tv_usec - start.tv_usec);
+
+          debug("Painting time (#%u): %.4fs %.4fus",
+                paint_counter,
+                seconds_elapsed / paint_counter,
+                useconds_elapsed / paint_counter);
+
+          ++paint_counter;
+#endif /* __DEBUG__ */
 	}
 
       globalconf.do_repaint = false;
+      debug("Finish re-painting");
     }
   while(true);
 
