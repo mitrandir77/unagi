@@ -262,8 +262,16 @@ opacity_event_handle_property_notify(xcb_property_notify_event_t *event,
      updated, but free existing one if any */
   _opacity_free_property_reply(opacity_window);
 
-  if(event->state == XCB_PROPERTY_NEW_VALUE)
-    opacity_window->cookie = _opacity_get_property(window->id);
+  switch(event->state)
+    {
+    case XCB_PROPERTY_NEW_VALUE:
+      opacity_window->cookie = _opacity_get_property(window->id);
+      break;
+
+    case XCB_PROPERTY_DELETE:
+      opacity_window->opacity = OPACITY_OPAQUE;
+      break;
+    }
       
   /* Force redraw of the window as the opacity has changed */
   window->damaged = true;
