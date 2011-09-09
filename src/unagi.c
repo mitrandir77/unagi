@@ -52,7 +52,8 @@
 /*
  * Basic painting performance benchmark using gettimeofday
  */
-#include <sys/time.h>
+#include <time.h>
+#include <math.h>
 #endif
 
 conf_t globalconf;
@@ -372,8 +373,14 @@ main(int argc, char **argv)
 
 #ifdef __DEBUG__
   /* Meaningful to measure painting performances */
-  double seconds_elapsed = 0.0, useconds_elapsed = 0.0;
-  unsigned int paint_counter = 1;
+  long paint_time_sum = 0;
+  long paint_time_min = LONG_MAX;
+  long paint_time_max = 0;
+
+  /* For online computation of standard deviation */
+  long paint_time_mean = 0;
+  long paint_time_variance_sum = 0;
+  unsigned int paint_counter = 0;
 #endif
   /* Main event and error loop */
   xcb_generic_event_t *event;
@@ -406,23 +413,35 @@ main(int argc, char **argv)
 	    windows = globalconf.windows;
 
 #ifdef __DEBUG__
-          struct timeval start, end;
-          gettimeofday(&start, NULL);
+          struct timespec start, end;
+          clock_gettime(CLOCK_MONOTONIC_RAW, &start);
 #endif /* __DEBUG__ */
 	  window_paint_all(windows);
 	  xcb_aux_sync(globalconf.connection);
 #ifdef __DEBUG__
-          gettimeofday(&end, NULL);
-
-          seconds_elapsed += (double) (end.tv_sec - start.tv_sec);
-          useconds_elapsed += (double) (end.tv_usec - start.tv_usec);
-
-          debug("Painting time (#%u): %.4fs %.4fus",
-                paint_counter,
-                seconds_elapsed / paint_counter,
-                useconds_elapsed / paint_counter);
+          clock_gettime(CLOCK_MONOTONIC_RAW, &end);
 
           ++paint_counter;
+
+          long paint_time = ((end.tv_nsec - start.tv_nsec) / 1000) +
+            (((long) end.tv_sec - start.tv_sec) * 1000000);
+
+          if(paint_time < paint_time_min)
+            paint_time_min = paint_time;
+          if(paint_time > paint_time_max)
+            paint_time_max = paint_time;
+
+          paint_time_sum += paint_time;
+
+          /* Compute standard deviation for this iteration */
+          long double delta = paint_time - paint_time_mean;
+          paint_time_mean += delta / paint_counter;
+          paint_time_variance_sum += delta * (paint_time - paint_time_mean);
+
+          debug("Painting time (#%u): min=%lu, max=%lu, average=%lu (+/- %Lf)",
+                paint_counter, paint_time_min, paint_time_max,
+                paint_time_sum / paint_counter,
+                sqrtl(paint_time_variance_sum / paint_counter));
 #endif /* __DEBUG__ */
 	}
 

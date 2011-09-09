@@ -101,6 +101,8 @@ AC_ARG_ENABLE(debug,
         [HAVE_DEBUG=yes],
         [HAVE_DEBUG=no])
 
+AM_CONDITIONAL([DEBUG], [test x$HAVE_DEBUG = xyes])
+
 if test "x$HAVE_DEBUG" = "xyes"
 then
    CFLAGS="$CFLAGS -ggdb -O0 -D__DEBUG__"
