@@ -404,6 +404,9 @@ main(int argc, char **argv)
       /* Now paint the windows */
       if(globalconf.damaged)
 	{
+#ifdef __DEBUG__
+          debug("COUNT: %d: Begin re-painting", paint_counter);
+#endif
 	  window_t *windows = NULL;
 	  for(plugin_t *plugin = globalconf.plugins; plugin; plugin = plugin->next)
 	    if(plugin->enable && plugin->vtable->render_windows &&

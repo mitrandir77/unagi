@@ -596,9 +596,6 @@ window_add_damaged_region(window_t *window)
 void
 window_paint_all(window_t *windows)
 {
-#ifdef __DEBUG__
-  static uint32_t _paint_all_counter = 0;
-#endif
   (*globalconf.rendering->paint_background)();
 
   for(window_t *window = windows; window; window = window->next)
@@ -614,8 +611,4 @@ window_paint_all(window_t *windows)
     }
 
   (*globalconf.rendering->paint_all)();
-
-#ifdef __DEBUG__
-  debug("COUNT: %ju", (uintmax_t) ++_paint_all_counter);
-#endif
 }
