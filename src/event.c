@@ -381,10 +381,11 @@ event_handle_configure_notify(xcb_configure_notify_event_t *event)
 
   /* Invalidate  Pixmap and  Picture if  the window  has  been resized
      because  a  new  pixmap  is  allocated everytime  the  window  is
-     resized */
-  if(window->geometry->width != event->width ||
-     window->geometry->height != event->height ||
-     window->geometry->border_width != event->border_width)
+     resized (only meaningful when the window is viewable) */
+  if(window->attributes->map_state == XCB_MAP_STATE_VIEWABLE &&
+     (window->geometry->width != event->width ||
+      window->geometry->height != event->height ||
+      window->geometry->border_width != event->border_width))
     {
       window_free_pixmap(window);
       window->pixmap = window_get_pixmap(window);
