@@ -26,6 +26,7 @@
 #include <xcb/xcb.h>
 #include <xcb/xcb_keysyms.h>
 #include <xcb/xcb_ewmh.h>
+#include <xcb/xfixes.h>
 
 #include <confuse.h>
 
@@ -62,8 +63,8 @@ typedef struct _conf_t
   xcb_window_t cm_window;
   /** The list of all windows as objects */
   window_t *windows;
-  /** Specify whether the content of the screen should be updated */
-  bool do_repaint;
+  /** Damaged region which must be repainted */
+  xcb_xfixes_region_t damaged;
   /** Confuse configuration file options */
   cfg_t *cfg;
   /** List of KeySyms, only updated when receiving a KeyboardMapping event */

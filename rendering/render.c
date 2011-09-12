@@ -183,6 +183,10 @@ _render_root_background_fill(void)
 static inline void
 _render_paint_root_buffer_to_root(void)
 {
+  xcb_xfixes_set_picture_clip_region(globalconf.connection,
+                                     _render_conf.picture,
+                                     globalconf.damaged, 0, 0);
+
   xcb_render_composite(globalconf.connection,
 		       XCB_RENDER_PICT_OP_SRC,
 		       _render_conf.buffer_picture, XCB_NONE, _render_conf.picture,
@@ -395,6 +399,10 @@ _render_create_window_alpha_picture(xcb_render_picture_t *alpha_picture,
 static void
 render_paint_background(void)
 {
+  xcb_xfixes_set_picture_clip_region(globalconf.connection,
+                                     _render_conf.buffer_picture,
+                                     globalconf.damaged, 0, 0);
+
   _render_paint_root_background_to_buffer();
 }
 

@@ -250,15 +250,21 @@ event_handle_damage_notify(xcb_damage_notify_event_t *event)
       return;
     }
 
-  /* Subtract  the current  window  Damage (e.g.   set  it as  empty),
-     otherwise  this window  would  not received  DamageNotify as  the
-     window area is now non-empty */
-  xcb_damage_subtract(globalconf.connection, window->damage,
-		      XCB_NONE, XCB_NONE);
+  if(!window->region)
+    {
+      window->region = xcb_generate_id(globalconf.connection);
+      xcb_xfixes_create_region(globalconf.connection, window->region,
+                               0, NULL);      
+    }
 
-  /* The screen has to be repainted to update the damaged area */
-  globalconf.do_repaint = true;
-  window->damaged = true;
+  xcb_damage_subtract(globalconf.connection, window->damage, XCB_NONE,
+                      window->region);
+
+  xcb_xfixes_translate_region(globalconf.connection, window->region,
+                              (uint16_t) (window->geometry->x + window->geometry->border_width),
+                              (uint16_t) (window->geometry->y + window->geometry->border_width));
+
+  window_add_damaged_region(window);
 
   PLUGINS_EVENT_HANDLE(event, damage, window);
 }
@@ -366,6 +372,8 @@ event_handle_configure_notify(xcb_configure_notify_event_t *event)
       debug("No such window %jx", (uintmax_t) event->window);
       return;
     }
+
+  window_add_damaged_region(window_create_region(window));
 
   /* Update geometry */
   window->geometry->x = event->x;
@@ -533,12 +541,13 @@ event_handle_unmap_notify(xcb_unmap_notify_event_t *event)
       return;
     }
 
+  window_add_damaged_region(window_create_region(window));
+
   /* Update window state */
   window->attributes->map_state = XCB_MAP_STATE_UNMAPPED;
 
   /* The window is not damaged anymore as it is not visible */
   window->damaged = false;
-  globalconf.do_repaint = true;
 
   PLUGINS_EVENT_HANDLE(event, unmap, window);
 }
@@ -560,9 +569,6 @@ event_handle_property_notify(xcb_property_notify_event_t *event)
     {
       debug("New background Pixmap set");
       (*globalconf.rendering->reset_background)();
-
-      /* Force repaint of the entire screen */
-      globalconf.do_repaint = true;
     }
 
   /* Update _NET_SUPPORTED value */

@@ -303,3 +303,10 @@ display_init_redirect_finalise(void)
 
   free(query_tree_reply);
 }
+
+void
+display_reset_damaged(void)
+{
+  xcb_xfixes_destroy_region(globalconf.connection, globalconf.damaged);
+  globalconf.damaged = XCB_NONE;
+}

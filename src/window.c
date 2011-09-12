@@ -282,6 +282,27 @@ window_get_pixmap(const window_t *window)
   return pixmap;
 }
 
+window_t *
+window_create_region(window_t *window)
+{
+  if(window->region)
+    return window;
+
+  xcb_rectangle_t r = {
+    .x = window->geometry->x,
+    .y = window->geometry->y,
+    .width = window->geometry->width + (window->geometry->border_width * 2),
+    .height = window->geometry->height + (window->geometry->border_width * 2)
+  };
+
+  window->region = xcb_generate_id(globalconf.connection);
+  xcb_xfixes_create_region(globalconf.connection, window->region, 1, &r);
+
+  debug("Created new region %x", window->region);
+
+  return window;
+}
+
 /** Check whether the window is visible within the screen geometry
  *
  * \param window The window object
@@ -541,6 +562,30 @@ window_restack(window_t *window, xcb_window_t window_new_above_id)
       window->next = window_below->next;
       window_below->next = window;
     }
+}
+
+void
+window_add_damaged_region(window_t *window)
+{
+  if(globalconf.damaged)
+    {
+      debug("Adding %x to damaged region %x", window->region,
+            globalconf.damaged);
+
+      xcb_xfixes_union_region(globalconf.connection, globalconf.damaged,
+                              window->region, globalconf.damaged);
+
+      xcb_xfixes_destroy_region(globalconf.connection, window->region);
+      window->region = XCB_NONE;
+    }
+  else
+    {
+      debug("Initializing damaged region to %x", window->region);
+      globalconf.damaged = window->region;
+      window->region = XCB_NONE;
+    }
+
+  window->damaged = true;
 }
 
 /** Paint all windows  on the screen by calling  the rendering backend

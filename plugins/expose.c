@@ -851,7 +851,8 @@ _expose_plugin_enable(const uint32_t nwindows)
     }
   else
     /* The plugin is now enabled, so paint the screen */
-    globalconf.do_repaint = true;
+    /* TODO-PERF: globalconf.do_repaint = true; */
+    ;
 
   free(grab_pointer_reply);
   free(grab_keyboard_reply);
@@ -879,7 +880,7 @@ _expose_plugin_disable(_expose_window_slot_t *slots)
 
   /* Force repaint of the screen as the plugin is now disabled */
   _expose_global.enabled = false;
-  globalconf.do_repaint = true;
+  /* TODO-PERF: globalconf.do_repaint = true; */
 }
 
 /** When receiving a KeyRelease  event, just enable/disable the plugin

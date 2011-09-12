@@ -368,8 +368,6 @@ main(int argc, char **argv)
   /* Flush existing  requests before  the loop as  DamageNotify events
      may have been received in the meantime */
   xcb_flush(globalconf.connection);
-  globalconf.do_repaint = true;
-
 
 #ifdef __DEBUG__
   /* Meaningful to measure painting performances */
@@ -382,6 +380,10 @@ main(int argc, char **argv)
   long paint_time_variance_sum = 0;
   unsigned int paint_counter = 0;
 #endif
+
+  (*globalconf.rendering->paint_background)();
+  (*globalconf.rendering->paint_all)();
+
   /* Main event and error loop */
   xcb_generic_event_t *event;
   do
@@ -401,7 +403,7 @@ main(int argc, char **argv)
       event_handle_poll_loop(event_handle);
 
       /* Now paint the windows */
-      if(globalconf.do_repaint)
+      if(globalconf.damaged)
 	{
 	  window_t *windows = NULL;
 	  for(plugin_t *plugin = globalconf.plugins; plugin; plugin = plugin->next)
@@ -413,6 +415,23 @@ main(int argc, char **argv)
 	    windows = globalconf.windows;
 
 #ifdef __DEBUG__
+          /* Display damaged regions */
+          xcb_xfixes_fetch_region_reply_t *r = \
+            xcb_xfixes_fetch_region_reply(globalconf.connection,
+                                          xcb_xfixes_fetch_region(globalconf.connection,
+                                                                  globalconf.damaged),
+                                          NULL);
+          if(r)
+            {
+              xcb_rectangle_t *rects = xcb_xfixes_fetch_region_rectangles(r);
+
+              for(int i = 0; i < xcb_xfixes_fetch_region_rectangles_length(r);
+                  i++)
+                debug("Damaged region #%d: %dx%d +%d+%d",
+                      i, rects[i].width, rects[i].height,
+                      rects[i].x, rects[i].y);
+            }
+
           struct timespec start, end;
           clock_gettime(CLOCK_MONOTONIC_RAW, &start);
 #endif /* __DEBUG__ */
@@ -444,10 +463,9 @@ main(int argc, char **argv)
                 paint_time_sum / paint_counter,
                 sqrtl(paint_time_variance_sum / paint_counter));
 #endif /* __DEBUG__ */
+          display_reset_damaged();
+          debug("Finish re-painting");
 	}
-
-      globalconf.do_repaint = false;
-      debug("Finish re-painting");
     }
   while(true);
 
