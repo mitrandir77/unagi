@@ -241,9 +241,8 @@ _render_init_root_background(void)
     }
 }
 
-/** Create the Picture associated with the root Window, its background
- *  and paint it to the root Window
- *
+/** Create the  Picture associated  with the root  Window and  get its
+ *  background as well
  */
 static bool
 _render_init_root_picture(void)
@@ -304,11 +303,8 @@ _render_init_root_picture(void)
     xcb_free_pixmap(globalconf.connection, pixmap);
   }
 
-  /* Initialise the root  background Picture and paint it  to the root
-     Picture buffer for now */
+  /* Initialise the root background Picture */
   _render_init_root_background();
-  _render_paint_root_background_to_buffer();
-  _render_paint_root_buffer_to_root();
 
   return true;
 }

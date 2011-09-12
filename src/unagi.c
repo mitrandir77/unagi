@@ -381,8 +381,7 @@ main(int argc, char **argv)
   unsigned int paint_counter = 0;
 #endif
 
-  (*globalconf.rendering->paint_background)();
-  (*globalconf.rendering->paint_all)();
+  window_paint_all(globalconf.windows);
 
   /* Main event and error loop */
   xcb_generic_event_t *event;
