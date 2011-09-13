@@ -438,8 +438,9 @@ main(int argc, char **argv)
           paint_time_mean += delta / paint_counter;
           paint_time_variance_sum += delta * (paint_time - paint_time_mean);
 
-          debug("Painting time (#%u): min=%lu, max=%lu, average=%lu (+/- %Lf)",
-                paint_counter, paint_time_min, paint_time_max,
+          debug("Painting time in ms (#%u): %lu, min=%lu, max=%lu, "
+                "average=%lu (+/- %.1Lf)",
+                paint_counter, paint_time, paint_time_min, paint_time_max,
                 paint_time_sum / paint_counter,
                 sqrtl(paint_time_variance_sum / paint_counter));
 #endif /* __DEBUG__ */
