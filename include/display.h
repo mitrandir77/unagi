@@ -42,6 +42,7 @@ bool display_init_atoms_finalise(void);
 void display_init_redirect(void);
 void display_init_redirect_finalise(void);
 
+void display_add_damaged_region(xcb_xfixes_region_t);
 void display_reset_damaged(void);
 
 #endif

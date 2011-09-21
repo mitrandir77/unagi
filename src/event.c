@@ -250,21 +250,37 @@ event_handle_damage_notify(xcb_damage_notify_event_t *event)
       return;
     }
 
-  if(!window->region)
+  xcb_xfixes_region_t damaged_region;
+
+  /* If the Window has never been  damaged, then it means it has never
+     be painted on the screen yet, thus paint its entire content */
+  if(!window->damaged)
     {
-      window->region = xcb_generate_id(globalconf.connection);
-      xcb_xfixes_create_region(globalconf.connection, window->region,
-                               0, NULL);      
+      damaged_region = window->region;
+      window->damaged = true;
+
+      xcb_damage_subtract(globalconf.connection, window->damage, XCB_NONE, XCB_NONE);
+    }
+  /* Otherwise, just paint the damaged Region (which may be the entire
+     Window or part of it */
+  else
+    {
+      damaged_region = xcb_generate_id(globalconf.connection);
+      
+      xcb_xfixes_create_region(globalconf.connection, damaged_region,
+                               0, NULL);
+
+      xcb_damage_subtract(globalconf.connection, window->damage, XCB_NONE,
+                          damaged_region);
+
+      xcb_xfixes_translate_region(globalconf.connection, damaged_region,
+                                  (uint16_t) (window->geometry->x +
+                                              window->geometry->border_width),
+                                  (uint16_t) (window->geometry->y +
+                                              window->geometry->border_width));
     }
 
-  xcb_damage_subtract(globalconf.connection, window->damage, XCB_NONE,
-                      window->region);
-
-  xcb_xfixes_translate_region(globalconf.connection, window->region,
-                              (uint16_t) (window->geometry->x + window->geometry->border_width),
-                              (uint16_t) (window->geometry->y + window->geometry->border_width));
-
-  window_add_damaged_region(window);
+  display_add_damaged_region(damaged_region);
 
   PLUGINS_EVENT_HANDLE(event, damage, window);
 }
@@ -373,7 +389,15 @@ event_handle_configure_notify(xcb_configure_notify_event_t *event)
       return;
     }
 
-  window_add_damaged_region(window_create_region(window));
+  /* Add the Window  Region to the damaged region  to clear old window
+     position or size and re-create the Window Region as well
+
+     @todo: Perhaps further checks  could be done to avoid re-creating
+            the Window Region but would it really change anything from
+            a performance POV?
+  */
+  display_add_damaged_region(window->region);
+  xcb_xfixes_destroy_region(globalconf.connection, window->region);
 
   /* Update geometry */
   window->geometry->x = event->x;
@@ -396,6 +420,8 @@ event_handle_configure_notify(xcb_configure_notify_event_t *event)
   window->geometry->height = event->height;
   window->geometry->border_width = event->border_width;
   window->attributes->override_redirect = event->override_redirect;
+
+  window->region = window_get_region(window);
 
   /* Restack the window */
   window_restack(window, event->above_sibling);
@@ -435,6 +461,11 @@ event_handle_create_notify(xcb_create_notify_event_t *event)
   new_window->geometry->width = event->width;
   new_window->geometry->height = event->height;
   new_window->geometry->border_width = event->border_width;
+
+  /* Create and store  the region associated with the  window to avoid
+     creating regions all the time, this Region will be destroyed only
+     upon DestroyNotify or re-created upon ConfigureNotify */
+  new_window->region = window_get_region(new_window);
 
   PLUGINS_EVENT_HANDLE(event, create, new_window);
 }
@@ -490,6 +521,8 @@ event_handle_map_notify(xcb_map_notify_event_t *event)
   window_free_pixmap(window);
   window->pixmap = window_get_pixmap(window);
 
+  window->region = window_get_region(window);
+
   window->damaged = false;
 
   PLUGINS_EVENT_HANDLE(event, map, window);
@@ -542,7 +575,7 @@ event_handle_unmap_notify(xcb_unmap_notify_event_t *event)
       return;
     }
 
-  window_add_damaged_region(window_create_region(window));
+  display_add_damaged_region(window->region);
 
   /* Update window state */
   window->attributes->map_state = XCB_MAP_STATE_UNMAPPED;

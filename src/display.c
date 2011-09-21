@@ -304,6 +304,44 @@ display_init_redirect_finalise(void)
   free(query_tree_reply);
 }
 
+/** Add the given Region to the damaged Region by either copying it if
+ *  the global Damaged is currently empty or adding it otherwise
+ *
+ *  @todo: Perhaps the  copy of  the  region  could be  avoided  if it
+ *         really impacts  on performances, but for now  this does not
+ *         seem to be an issue
+ *
+ * \param region Damaged Region to be added to the global one
+ */
+void
+display_add_damaged_region(xcb_xfixes_region_t region)
+{
+  if(globalconf.damaged)
+    {
+      xcb_xfixes_union_region(globalconf.connection, globalconf.damaged,
+                              region, globalconf.damaged);
+
+      debug("Added %x to damaged region %x", region, globalconf.damaged);
+    }
+  else
+    {
+      /* Copy the  given Region as  it is generally the  Window Region
+         and it can still be  used later on whereas the damaged Region
+         is cleared at each painting iteration */
+      xcb_xfixes_region_t copied_region = xcb_generate_id(globalconf.connection);
+      xcb_xfixes_create_region(globalconf.connection, copied_region, 0, NULL);
+      xcb_xfixes_copy_region(globalconf.connection, region, copied_region);
+
+      globalconf.damaged = copied_region;
+
+      debug("Initialized damaged region to %x (from %x)", copied_region, region);
+    }
+}
+
+/** Destroy the global  damaged Region and set it  to None, meaningful
+ *  at  each  re-painting iteration  to  check  whether  a repaint  is
+ *  necessary. This region is filled in event handlers
+ */
 void
 display_reset_damaged(void)
 {

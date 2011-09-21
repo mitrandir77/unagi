@@ -98,6 +98,12 @@ window_list_free_window(window_t *window)
       window->damage = XCB_NONE;
     }
 
+  if(window->region != XCB_NONE)
+    {
+      xcb_xfixes_destroy_region(globalconf.connection, window->region);
+      window->region = XCB_NONE;
+    }
+
   /* TODO: free plugins memory? */
   window_free_pixmap(window);
   (*globalconf.rendering->free_window)(window);
@@ -282,25 +288,36 @@ window_get_pixmap(const window_t *window)
   return pixmap;
 }
 
-window_t *
-window_create_region(window_t *window)
+/** No need to include Shape extension header just for that */
+#define XCB_SHAPE_SK_BOUNDING 0
+
+/** Get   the  region   of  the   given  Window   and  take   care  of
+ *  non-rectangular windows by using CreateRegionFromWindow instead of
+ *  Window size and position
+ *
+ * \param window The window object
+ * \return The region associated with the given Window
+ */
+xcb_xfixes_region_t
+window_get_region(window_t *window)
 {
-  if(window->region)
-    return window;
+  xcb_xfixes_region_t new_region = xcb_generate_id(globalconf.connection);
 
-  xcb_rectangle_t r = {
-    .x = window->geometry->x,
-    .y = window->geometry->y,
-    .width = window->geometry->width + (window->geometry->border_width * 2),
-    .height = window->geometry->height + (window->geometry->border_width * 2)
-  };
+  xcb_xfixes_create_region_from_window(globalconf.connection,
+                                       new_region,
+                                       window->id,
+                                       XCB_SHAPE_SK_BOUNDING);
 
-  window->region = xcb_generate_id(globalconf.connection);
-  xcb_xfixes_create_region(globalconf.connection, window->region, 1, &r);
+  xcb_xfixes_translate_region(globalconf.connection,
+                              new_region,
+                              (uint16_t) (window->geometry->x +
+                                          window->geometry->border_width),
+                              (uint16_t) (window->geometry->y +
+                                          window->geometry->border_width));
 
-  debug("Created new region %x", window->region);
+  debug("Created new region %x from window %x", new_region, window->id);
 
-  return window;
+  return new_region;
 }
 
 /** Check whether the window is visible within the screen geometry
@@ -469,6 +486,11 @@ window_manage_existing(const int nwindows,
 	  continue;
 	}
 
+      new_windows[nwindow]->geometry =
+	xcb_get_geometry_reply(globalconf.connection,
+			       geometry_cookies[nwindow],
+			       NULL);
+
       /* The opacity  property is only  meaningful when the  window is
 	 mapped, because when the window is unmapped, we don't receive
 	 PropertyNotify */
@@ -476,12 +498,12 @@ window_manage_existing(const int nwindows,
 	{
 	  window_register_notify(new_windows[nwindow]);
 	  new_windows[nwindow]->pixmap = window_get_pixmap(new_windows[nwindow]);
-	}
 
-      new_windows[nwindow]->geometry =
-	xcb_get_geometry_reply(globalconf.connection,
-			       geometry_cookies[nwindow],
-			       NULL);
+          /* Get the Window Region as  well, this is also performed in
+             CreateNotify   and   ConfigureNotify   handler  for   new
+             Windows */
+          new_windows[nwindow]->region = window_get_region(new_windows[nwindow]);
+	}
     }
 
   for(plugin_t *plugin = globalconf.plugins; plugin; plugin = plugin->next)
@@ -562,30 +584,6 @@ window_restack(window_t *window, xcb_window_t window_new_above_id)
       window->next = window_below->next;
       window_below->next = window;
     }
-}
-
-void
-window_add_damaged_region(window_t *window)
-{
-  if(globalconf.damaged)
-    {
-      debug("Adding %x to damaged region %x", window->region,
-            globalconf.damaged);
-
-      xcb_xfixes_union_region(globalconf.connection, globalconf.damaged,
-                              window->region, globalconf.damaged);
-
-      xcb_xfixes_destroy_region(globalconf.connection, window->region);
-      window->region = XCB_NONE;
-    }
-  else
-    {
-      debug("Initializing damaged region to %x", window->region);
-      globalconf.damaged = window->region;
-      window->region = XCB_NONE;
-    }
-
-  window->damaged = true;
 }
 
 /** Paint all windows  on the screen by calling  the rendering backend

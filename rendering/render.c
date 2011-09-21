@@ -466,6 +466,16 @@ render_paint_window(window_t *window)
       }
   }
 
+  /* Only paint  from the  Window Region, otherwise  it does  not work
+     properly for non-rectangular windows such as xeyes
+
+     @todo: Could maybe be  improved by using XFixesIntersectRegion or
+            XFixesSubtractRegion
+  */
+  xcb_xfixes_set_picture_clip_region(globalconf.connection,
+                                     _render_conf.buffer_picture,
+                                     window->region, 0, 0);
+
   xcb_render_composite(globalconf.connection,
 		       render_composite_op,
 		       render_window->picture, window_alpha_picture, _render_conf.buffer_picture,
