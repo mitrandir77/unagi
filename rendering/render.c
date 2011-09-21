@@ -58,6 +58,8 @@ typedef struct
   xcb_render_picture_t picture;
   /** Alpha Picture of the Window */ 
   xcb_render_picture_t alpha_picture;
+  /** Alpha Picture opacity of the Window */
+  uint32_t opacity;
 } _render_window_t;
 
 /** Request label of Render extension for X error reporting, which are
@@ -452,15 +454,35 @@ render_paint_window(window_t *window)
     if(opacity_plugin && opacity_plugin->vtable->window_get_opacity &&
        (opacity = (*opacity_plugin->vtable->window_get_opacity)(window)) != UINT16_MAX)
       {
+        /* Re-create the alpha Picture if the opacity was changed */
+        if(render_window->alpha_picture &&
+           render_window->opacity != opacity)
+          {
+            xcb_render_free_picture(globalconf.connection,
+                                    render_window->alpha_picture);
+
+            render_window->alpha_picture = XCB_NONE;
+          }
+
 	if(!render_window->alpha_picture)
-	  _render_create_window_alpha_picture(&render_window->alpha_picture,
-					      opacity);
+          {
+            _render_create_window_alpha_picture(&render_window->alpha_picture,
+                                                opacity);
+
+            render_window->opacity = opacity;
+          }
 
 	render_composite_op = XCB_RENDER_PICT_OP_OVER;
 	window_alpha_picture = render_window->alpha_picture;
       }
     else
       {
+        /* Make  sure the  alpha  Picture is  freed  after the  Window
+           turned opaque but was previously translucent */
+        if(render_window->alpha_picture != XCB_NONE)
+          xcb_render_free_picture(globalconf.connection,
+                                  render_window->alpha_picture);
+
 	render_composite_op = XCB_RENDER_PICT_OP_SRC;
 	window_alpha_picture = XCB_NONE;
       }
@@ -554,7 +576,7 @@ render_free_window_pixmap(window_t *window)
 {
   _render_window_t *render_window = (_render_window_t *) window->rendering;
 
-  if(render_window)
+  if(render_window && render_window->picture != XCB_NONE)
     {
       xcb_render_free_picture(globalconf.connection, render_window->picture);
       render_window->picture = XCB_NONE;
