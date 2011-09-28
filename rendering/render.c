@@ -498,6 +498,11 @@ render_paint_window(window_t *window)
                                      _render_conf.buffer_picture,
                                      window->region, 0, 0);
 
+  debug("%x: Clipping to %dx%d +%d+%d", window->id,
+        (uint16_t) (window->geometry->width + window->geometry->border_width * 2),
+        (uint16_t) (window->geometry->height + window->geometry->border_width * 2),
+        window->geometry->x, window->geometry->y);
+
   xcb_render_composite(globalconf.connection,
 		       render_composite_op,
 		       render_window->picture, window_alpha_picture, _render_conf.buffer_picture,
