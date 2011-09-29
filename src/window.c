@@ -494,7 +494,8 @@ window_manage_existing(const int nwindows,
       /* The opacity  property is only  meaningful when the  window is
 	 mapped, because when the window is unmapped, we don't receive
 	 PropertyNotify */
-      if(new_windows[nwindow]->attributes->map_state == XCB_MAP_STATE_VIEWABLE)
+      if(new_windows[nwindow]->attributes->map_state == XCB_MAP_STATE_VIEWABLE &&
+         window_is_visible(new_windows[nwindow]))
 	{
 	  window_register_notify(new_windows[nwindow]);
 	  new_windows[nwindow]->pixmap = window_get_pixmap(new_windows[nwindow]);

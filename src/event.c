@@ -250,6 +250,13 @@ event_handle_damage_notify(xcb_damage_notify_event_t *event)
       return;
     }
 
+  if(!window_is_visible(window))
+    {
+      xcb_damage_subtract(globalconf.connection, window->damage, XCB_NONE, XCB_NONE);
+      debug("Ignore damaged as Window %x is not visible", window->id);
+      return;
+    }
+
   xcb_xfixes_region_t damaged_region;
 
   /* If the Window has never been  damaged, then it means it has never
@@ -396,12 +403,17 @@ event_handle_configure_notify(xcb_configure_notify_event_t *event)
             the Window Region but would it really change anything from
             a performance POV?
   */
-  display_add_damaged_region(window->region);
-  xcb_xfixes_destroy_region(globalconf.connection, window->region);
+  if(window_is_visible(window))
+    {
+      display_add_damaged_region(window->region);
+      xcb_xfixes_destroy_region(globalconf.connection, window->region);
+    }
 
   /* Update geometry */
   window->geometry->x = event->x;
   window->geometry->y = event->y;
+
+  bool update_pixmap = false;
 
   /* Invalidate  Pixmap and  Picture if  the window  has  been resized
      because  a  new  pixmap  is  allocated everytime  the  window  is
@@ -410,10 +422,7 @@ event_handle_configure_notify(xcb_configure_notify_event_t *event)
      (window->geometry->width != event->width ||
       window->geometry->height != event->height ||
       window->geometry->border_width != event->border_width))
-    {
-      window_free_pixmap(window);
-      window->pixmap = window_get_pixmap(window);
-    }
+    update_pixmap = true;
 
   /* Update size and border width */
   window->geometry->width = event->width;
@@ -421,7 +430,16 @@ event_handle_configure_notify(xcb_configure_notify_event_t *event)
   window->geometry->border_width = event->border_width;
   window->attributes->override_redirect = event->override_redirect;
 
-  window->region = window_get_region(window);
+  if(window_is_visible(window))
+    {
+      window->region = window_get_region(window);
+
+      if(update_pixmap)
+        {
+          window_free_pixmap(window);
+          window->pixmap = window_get_pixmap(window);
+        }
+    }
 
   /* Restack the window */
   window_restack(window, event->above_sibling);
@@ -462,10 +480,12 @@ event_handle_create_notify(xcb_create_notify_event_t *event)
   new_window->geometry->height = event->height;
   new_window->geometry->border_width = event->border_width;
 
-  /* Create and store  the region associated with the  window to avoid
-     creating regions all the time, this Region will be destroyed only
-     upon DestroyNotify or re-created upon ConfigureNotify */
-  new_window->region = window_get_region(new_window);
+  if(window_is_visible(new_window))
+    /* Create and store the region associated with the window to avoid
+       creating regions all the time, this Region will be destroyed
+       only upon DestroyNotify or re-created upon ConfigureNotify
+    */
+    new_window->region = window_get_region(new_window);
 
   PLUGINS_EVENT_HANDLE(event, create, new_window);
 }
@@ -517,11 +537,14 @@ event_handle_map_notify(xcb_map_notify_event_t *event)
 
   window->attributes->map_state = XCB_MAP_STATE_VIEWABLE;
 
-  /* Everytime a window is mapped, a new pixmap is created */
-  window_free_pixmap(window);
-  window->pixmap = window_get_pixmap(window);
+  if(window_is_visible(window))
+    {
+      window->region = window_get_region(window);
 
-  window->region = window_get_region(window);
+      /* Everytime a window is mapped, a new pixmap is created */
+      window_free_pixmap(window);
+      window->pixmap = window_get_pixmap(window);
+    }
 
   window->damaged = false;
 
@@ -575,7 +598,8 @@ event_handle_unmap_notify(xcb_unmap_notify_event_t *event)
       return;
     }
 
-  display_add_damaged_region(window->region);
+  if(window_is_visible(window))
+    display_add_damaged_region(window->region);
 
   /* Update window state */
   window->attributes->map_state = XCB_MAP_STATE_UNMAPPED;
