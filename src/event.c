@@ -371,11 +371,13 @@ event_handle_circulate_notify(xcb_circulate_notify_event_t *event)
 static void
 event_handle_configure_notify(xcb_configure_notify_event_t *event)
 {
-  debug("ConfigureNotify: event=%jx, window=%jx above=%jx (%jux%ju +%jd +%jd)",
+  debug("ConfigureNotify: event=%jx, window=%jx above=%jx (%jux%ju +%jd +%jd, "
+        "border=%ju)",
 	(uintmax_t) event->event, (uintmax_t) event->window,
 	(uintmax_t) event->above_sibling, 
 	(uintmax_t) event->width, (uintmax_t) event->height,
-	(intmax_t) event->x, (intmax_t) event->y);
+	(intmax_t) event->x, (intmax_t) event->y,
+        (uintmax_t) event->border_width);
 
   /* If  this is  the root  window, then  just create  again  the root
      background picture */
@@ -457,10 +459,11 @@ event_handle_configure_notify(xcb_configure_notify_event_t *event)
 static void
 event_handle_create_notify(xcb_create_notify_event_t *event)
 {
-  debug("CreateNotify: parent=%jx, window=%jx (%jux%ju +%jd +%jd)",
+  debug("CreateNotify: parent=%jx, window=%jx (%jux%ju +%jd +%jd, border=%ju)",
 	(uintmax_t) event->parent, (uintmax_t) event->window,
 	(uintmax_t) event->width, (uintmax_t) event->height,
-	(intmax_t) event->x, (intmax_t) event->y);
+	(intmax_t) event->x, (intmax_t) event->y,
+        (uintmax_t) event->border_width);
 
   /* Add  the  new window  whose  identifier  is  given in  the  event
      itself and  */
