@@ -504,7 +504,7 @@ event_handle_destroy_notify(xcb_destroy_notify_event_t *event)
   window_t *window = window_list_get(event->window);
   if(!window)
     {
-      warn("Can't destroy window %jx", (uintmax_t) event->window);
+      debug("Can't destroy window %jx", (uintmax_t) event->window);
       return;
     }
 
