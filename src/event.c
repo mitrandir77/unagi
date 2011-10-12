@@ -258,6 +258,7 @@ event_handle_damage_notify(xcb_damage_notify_event_t *event)
     }
 
   xcb_xfixes_region_t damaged_region;
+  bool is_temporary_region = false;
 
   /* If the Window has never been  damaged, then it means it has never
      be painted on the screen yet, thus paint its entire content */
@@ -285,9 +286,11 @@ event_handle_damage_notify(xcb_damage_notify_event_t *event)
                                               window->geometry->border_width),
                                   (uint16_t) (window->geometry->y +
                                               window->geometry->border_width));
+
+      is_temporary_region = true;
     }
 
-  display_add_damaged_region(damaged_region);
+  display_add_damaged_region(&damaged_region, is_temporary_region);
 
   PLUGINS_EVENT_HANDLE(event, damage, window);
 }
@@ -406,10 +409,7 @@ event_handle_configure_notify(xcb_configure_notify_event_t *event)
             a performance POV?
   */
   if(window_is_visible(window))
-    {
-      display_add_damaged_region(window->region);
-      xcb_xfixes_destroy_region(globalconf.connection, window->region);
-    }
+    display_add_damaged_region(&window->region, true);
 
   /* Update geometry */
   window->geometry->x = event->x;
@@ -602,7 +602,7 @@ event_handle_unmap_notify(xcb_unmap_notify_event_t *event)
     }
 
   if(window_is_visible(window))
-    display_add_damaged_region(window->region);
+    display_add_damaged_region(&window->region, true);
 
   /* Update window state */
   window->attributes->map_state = XCB_MAP_STATE_UNMAPPED;

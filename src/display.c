@@ -314,28 +314,48 @@ display_init_redirect_finalise(void)
  * \param region Damaged Region to be added to the global one
  */
 void
-display_add_damaged_region(xcb_xfixes_region_t region)
+display_add_damaged_region(xcb_xfixes_region_t *region,
+                           bool do_destroy_region)
 {
+  if(!*region)
+    return;
+
   if(globalconf.damaged)
     {
       xcb_xfixes_union_region(globalconf.connection, globalconf.damaged,
-                              region, globalconf.damaged);
+                              *region, globalconf.damaged);
 
-      debug("Added %x to damaged region %x", region, globalconf.damaged);
+      debug("Added %x to damaged region %x", *region, globalconf.damaged);
+
+      if(do_destroy_region)
+        xcb_xfixes_destroy_region(globalconf.connection, *region);
     }
   else
     {
-      /* Copy the  given Region as  it is generally the  Window Region
-         and it can still be  used later on whereas the damaged Region
-         is cleared at each painting iteration */
-      xcb_xfixes_region_t copied_region = xcb_generate_id(globalconf.connection);
-      xcb_xfixes_create_region(globalconf.connection, copied_region, 0, NULL);
-      xcb_xfixes_copy_region(globalconf.connection, region, copied_region);
+      /* If the region should not be destroyed, then copy the given
+         Region as it is generally the Window Region and can still be
+         used later on whereas the damaged Region is cleared at each
+         painting iteration */
+      if(!do_destroy_region)
+        {
+          globalconf.damaged = xcb_generate_id(globalconf.connection);
 
-      globalconf.damaged = copied_region;
+          xcb_xfixes_create_region(globalconf.connection,
+                                   globalconf.damaged,
+                                   0, NULL);
 
-      debug("Initialized damaged region to %x (from %x)", copied_region, region);
+          xcb_xfixes_copy_region(globalconf.connection, *region,
+                                 globalconf.damaged);
+        }
+      else
+        globalconf.damaged = *region;
+
+      debug("Initialized damaged region to %x (copied: %d)",
+            globalconf.damaged, !do_destroy_region);
     }
+
+  if(do_destroy_region)
+    *region = XCB_NONE;
 }
 
 /** Destroy the global  damaged Region and set it  to None, meaningful

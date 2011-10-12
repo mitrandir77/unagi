@@ -274,7 +274,7 @@ opacity_event_handle_property_notify(xcb_property_notify_event_t *event,
     }
       
   /* Force redraw of the window as the opacity has changed */
-  display_add_damaged_region(window->region);
+  display_add_damaged_region(&window->region, false);
 }
 
 /** Handle  for  UnmapNotify,  only  responsible to  free  the  memory
