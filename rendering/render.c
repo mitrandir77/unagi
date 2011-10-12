@@ -489,11 +489,7 @@ render_paint_window(window_t *window)
   }
 
   /* Only paint  from the  Window Region, otherwise  it does  not work
-     properly for non-rectangular windows such as xeyes
-
-     @todo: Could maybe be  improved by using XFixesIntersectRegion or
-            XFixesSubtractRegion
-  */
+     properly for non-rectangular windows such as xeyes */
   xcb_xfixes_set_picture_clip_region(globalconf.connection,
                                      _render_conf.buffer_picture,
                                      window->region, 0, 0);
@@ -511,6 +507,15 @@ render_paint_window(window_t *window)
 		       window->geometry->y,
 		       (uint16_t) (window->geometry->width + window->geometry->border_width * 2),
 		       (uint16_t) (window->geometry->height + window->geometry->border_width * 2));
+
+  /* In software rendering, there is no need to reset the clipping
+     region but with GPU accelerated rendering, it's completely buggy
+     (or is it an expected behavior?)  with most drivers (tested with
+     Intel, ATI and Nvidia GPUs). For example with Intel driver, only
+     the first window is painted... */
+  xcb_xfixes_set_picture_clip_region(globalconf.connection,
+                                     _render_conf.buffer_picture,
+                                     XCB_NONE, 0, 0);
 }
 
 /** Routine to  paint everything on  the root Picture, it  just paints
