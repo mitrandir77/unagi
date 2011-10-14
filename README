@@ -63,8 +63,7 @@ client.add_signal(
 Xephyr
 ======
 
-You may  want to use Xephyr (nested  X server) as the  software is not
-really stable (yet):
+You may want to use Xephyr (nested X server) for debugging:
 
 $ Xephyr -screen 1024x768 -ac -br :1
 
