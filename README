@@ -23,6 +23,43 @@ following command from the source directory:
 
 $ ./src/unagi  -r rendering/.libs/ -p plugins/.libs/ -c unagi.conf
 
+Awesome configuration for windows opacity
+=========================================
+
+The following  sets opacity to 0.8  for URxvt (you can  use `xprop' to
+find out what is the class (WM_CLASS property)):
+
+awful.rules.rules = {
+    ...
+    { rule = { class = "URxvt" },
+      properties = { opacity = 0.8 } },
+}
+
+Opacity depending on windows focus
+----------------------------------
+
+The following sets opacity for Emacs  and Rxvt to 0.9 when focused and
+0.7  otherwise (you  can use  `xprop' to  find out  what is  the class
+(WM_CLASS property)):
+
+client.add_signal(
+   "focus",
+   function(c)
+      if c.class:lower():find("rxvt") or c.class:lower():find("emacs") then
+         c.border_color = beautiful.border_focus
+         c.opacity = 0.9
+      end
+   end)
+
+client.add_signal(
+   "unfocus",
+   function(c)
+      if c.class:lower():find("rxvt") or c.class:lower():find("emacs") then
+         c.border_color = beautiful.border_normal
+         c.opacity = 0.7
+      end
+   end)
+
 Xephyr
 ======
 
