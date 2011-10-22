@@ -38,6 +38,7 @@
 #include "util.h"
 #include "window.h"
 #include "atoms.h"
+#include "display.h"
 
 /** Opaque opacity value */
 #define OPACITY_OPAQUE 0xffffffff

@@ -371,14 +371,14 @@ main(int argc, char **argv)
 
 #ifdef __DEBUG__
   /* Meaningful to measure painting performances */
-  long paint_time_sum = 0;
-  long paint_time_min = LONG_MAX;
-  long paint_time_max = 0;
+  long unsigned int paint_time_sum = 0;
+  long unsigned int paint_time_min = LONG_MAX;
+  long unsigned int paint_time_max = 0;
 
   /* For online computation of standard deviation */
-  long paint_time_mean = 0;
-  long paint_time_variance_sum = 0;
-  unsigned int paint_counter = 0;
+  long double paint_time_mean = 0;
+  long double paint_time_variance_sum = 0;
+  long unsigned int paint_counter = 0;
 #endif
 
   window_paint_all(globalconf.windows);
@@ -405,7 +405,7 @@ main(int argc, char **argv)
       if(globalconf.damaged)
 	{
 #ifdef __DEBUG__
-          debug("COUNT: %d: Begin re-painting", paint_counter);
+          debug("COUNT: %ld: Begin re-painting", paint_counter);
 #endif
 	  window_t *windows = NULL;
 	  for(plugin_t *plugin = globalconf.plugins; plugin; plugin = plugin->next)
@@ -444,8 +444,9 @@ main(int argc, char **argv)
 
           ++paint_counter;
 
-          long paint_time = ((end.tv_nsec - start.tv_nsec) / 1000) +
-            (((long) end.tv_sec - start.tv_sec) * 1000000);
+          long unsigned int paint_time = (long unsigned int) 
+            (((end.tv_nsec - start.tv_nsec) / 1000) +
+             ((end.tv_sec - start.tv_sec) * 1000000));
 
           if(paint_time < paint_time_min)
             paint_time_min = paint_time;
@@ -455,11 +456,11 @@ main(int argc, char **argv)
           paint_time_sum += paint_time;
 
           /* Compute standard deviation for this iteration */
-          long double delta = paint_time - paint_time_mean;
-          paint_time_mean += delta / paint_counter;
+          const long double delta = paint_time - paint_time_mean;
+          paint_time_mean += (long double) delta / paint_counter;
           paint_time_variance_sum += delta * (paint_time - paint_time_mean);
 
-          debug("Painting time in ms (#%u): %lu, min=%lu, max=%lu, "
+          debug("Painting time in ms (#%lu): %lu, min=%lu, max=%lu, "
                 "average=%lu (+/- %.1Lf)",
                 paint_counter, paint_time, paint_time_min, paint_time_max,
                 paint_time_sum / paint_counter,

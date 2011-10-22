@@ -47,7 +47,7 @@ typedef struct {
   /** Length of the Atom string name */
   uint8_t name_len;
   /** Atom string name */
-  char *name;
+  const char *name;
 } atom_t;
 
 /** Prepare  InternAtom  request  (EWMH  atoms are  initialised  using

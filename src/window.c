@@ -310,10 +310,10 @@ window_get_region(window_t *window)
 
   xcb_xfixes_translate_region(globalconf.connection,
                               new_region,
-                              (uint16_t) (window->geometry->x +
-                                          window->geometry->border_width),
-                              (uint16_t) (window->geometry->y +
-                                          window->geometry->border_width));
+                              (int16_t) (window->geometry->x +
+                                         window->geometry->border_width),
+                              (int16_t) (window->geometry->y +
+                                         window->geometry->border_width));
 
   debug("Created new region %x from window %x", new_region, window->id);
 

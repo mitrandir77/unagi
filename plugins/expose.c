@@ -850,9 +850,11 @@ _expose_plugin_enable(const uint32_t nwindows)
       _expose_free_slots(&new_slots);
     }
   else
-    /* The plugin is now enabled, so paint the screen */
-    /* TODO-PERF: globalconf.do_repaint = true; */
-    ;
+    {
+      /* The plugin is now enabled, so paint the screen */
+      /* TODO-PERF: globalconf.do_repaint = true; */
+      ;
+    }
 
   free(grab_pointer_reply);
   free(grab_keyboard_reply);

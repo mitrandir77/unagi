@@ -282,10 +282,10 @@ event_handle_damage_notify(xcb_damage_notify_event_t *event)
                           damaged_region);
 
       xcb_xfixes_translate_region(globalconf.connection, damaged_region,
-                                  (uint16_t) (window->geometry->x +
-                                              window->geometry->border_width),
-                                  (uint16_t) (window->geometry->y +
-                                              window->geometry->border_width));
+                                  (int16_t) (window->geometry->x +
+                                             window->geometry->border_width),
+                                  (int16_t) (window->geometry->y +
+                                             window->geometry->border_width));
 
       is_temporary_region = true;
     }
