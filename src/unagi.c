@@ -432,6 +432,8 @@ main(int argc, char **argv)
                 debug("Damaged region #%d: %dx%d +%d+%d",
                       i, rects[i].width, rects[i].height,
                       rects[i].x, rects[i].y);
+
+              free(r);
             }
 
           struct timespec start, end;
