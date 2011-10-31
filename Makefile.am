@@ -8,3 +8,10 @@ pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA = unagi.pc
 
 SUBDIRS = include src rendering plugins
+
+dist-hook: ChangeLog
+
+ChangeLog:
+	git log > ChangeLog
+
+.PHONY: ChangeLog

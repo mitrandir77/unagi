@@ -24,3 +24,4 @@ doc/man/
 *.pc
 m4/
 TAGS
+ChangeLog
