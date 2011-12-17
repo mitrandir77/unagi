@@ -1,4 +1,5 @@
-/*
+/* -*-mode:c;coding:utf-8; c-basic-offset:2;fill-column:70;c-file-style:"gnu"-*-
+ *
  * Copyright (C) 2009 Arnaud "arnau" Fontaine <arnau@mini-dweeb.org>
  * Copyright (C) 2008-2009 Julien Danjou <julien@danjou.info>
  * Copyright (C) 2008 Pierre Habouzit <madcoder@debian.org>
