@@ -50,6 +50,8 @@ typedef struct _display_extensions_t
 /** Global structure holding variables used all across the program */
 typedef struct _conf_t
 {
+  /** Verbose mode (disabled by default) */
+  bool verbose;
   /** The XCB connection structure */
   xcb_connection_t *connection;
   /** The screen number as defined by the protocol */

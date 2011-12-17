@@ -29,12 +29,14 @@
 #include "util.h"
 
 #define DO_DISPLAY_MESSAGE(LABEL)			\
-  va_list ap;						\
-  va_start(ap, fmt);					\
-  fprintf(stderr, LABEL ": %s:%d: ", func, line);	\
-  vfprintf(stderr, fmt, ap);				\
-  va_end(ap);						\
-  putc('\n', stderr);
+  {                                                     \
+    va_list ap;                                         \
+    va_start(ap, fmt);                                  \
+    fprintf(stderr, LABEL ": %s:%d: ", func, line);     \
+    vfprintf(stderr, fmt, ap);                          \
+    va_end(ap);                                         \
+    putc('\n', stderr);                                 \
+  }
 
 /** Fatal error message which exits the program
  *
@@ -70,16 +72,8 @@ _warn(const int line, const char *func, const char *fmt, ...)
  * \param fmt Format of the message
  */
 void
-#ifdef __DEBUG__
 _debug(const int line, const char *func, const char *fmt, ...)
 {
-  DO_DISPLAY_MESSAGE("DEBUG")
+  if(globalconf.verbose)
+    DO_DISPLAY_MESSAGE("DEBUG")
 }
-#else
-_debug(const int line __attribute__((unused)),
-       const char *func __attribute__((unused)),
-       const char *fmt __attribute__((unused)),
-       ...)
-{
-}
-#endif
