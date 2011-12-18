@@ -230,12 +230,39 @@ _render_init_root_background(void)
   _render_conf.background_picture = xcb_generate_id(globalconf.connection);
   const uint32_t root_buffer_val = true;
 
-  /* Create a new picture holding the background pixmap */
-  xcb_render_create_picture(globalconf.connection,
-			    _render_conf.background_picture,
-			    root_background_pixmap,
-			    _render_conf.pictvisual->format,
-			    XCB_RENDER_CP_REPEAT, &root_buffer_val);
+  /* Create  a new  picture holding  the background  pixmap through  a
+     'checked' request as  it may fail (for example  when 'display' is
+     used  to set  the background)  and  during startup,  it would  be
+     fatal */
+  xcb_void_cookie_t picture_cookie =
+    xcb_render_create_picture_checked(globalconf.connection,
+                                      _render_conf.background_picture,
+                                      root_background_pixmap,
+                                      _render_conf.pictvisual->format,
+                                      XCB_RENDER_CP_REPEAT, &root_buffer_val);
+
+  /* Check synchronously if the Picture  could be created, if not just
+     set a default background color */
+  xcb_generic_error_t *picture_error = xcb_request_check(globalconf.connection,
+                                                         picture_cookie);
+
+  if(picture_error)
+    {
+      warn("Could not create background Picture, setting a default background "
+           "color (try using another program to set the background?)");
+
+      free(picture_error);
+
+      root_background_pixmap = window_new_root_background_pixmap();
+      root_background_fill = true;
+
+      /* Do not perform any check as it should always succeed */
+      xcb_render_create_picture(globalconf.connection,
+                                _render_conf.background_picture,
+                                root_background_pixmap,
+                                _render_conf.pictvisual->format,
+                                XCB_RENDER_CP_REPEAT, &root_buffer_val);
+    }
 
   if(root_background_fill)
     {
