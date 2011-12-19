@@ -29,6 +29,7 @@ UNAGI_REQUIRES="libxdg-basedir >= 1.0.0 \
  xcb-composite \
  xcb-xfixes \
  xcb-damage \
+ xcb-randr \
  xcb-ewmh \
  xcb-event \
  xcb-aux \

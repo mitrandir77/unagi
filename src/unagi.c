@@ -32,6 +32,7 @@
 #include <xcb/composite.h>
 #include <xcb/xfixes.h>
 #include <xcb/damage.h>
+#include <xcb/randr.h>
 #include <xcb/xcb_ewmh.h>
 #include <xcb/xcb_aux.h>
 #include <xcb/xcb_keysyms.h>
@@ -249,7 +250,7 @@ _unagi_prepare_callback(EV_P_ ev_prepare *w, int revents)
 }
 
 static void
-_unagi_event_callback(EV_P_ ev_io *w, int revents)
+_unagi_paint_callback(EV_P_ ev_timer *w, int revents)
 {
 #ifdef __DEBUG__
   /* Meaningful to measure painting performances */
@@ -262,14 +263,6 @@ _unagi_event_callback(EV_P_ ev_io *w, int revents)
   static double paint_time_variance_sum = 0;
   static unsigned int paint_counter = 0;
 #endif
-
-  /* Check X connection to avoid SIGSEGV */
-  if(xcb_connection_has_error(globalconf.connection))
-    fatal("X connection invalid");
-
-  /* Process all events in the queue because before painting, all the
-     DamageNotify have to be received */
-  event_handle_poll_loop(event_handle);
 
   /* Now paint the windows */
   if(globalconf.damaged)
@@ -285,7 +278,6 @@ _unagi_event_callback(EV_P_ ev_io *w, int revents)
 
       if(!windows)
         windows = globalconf.windows;
-
 #ifdef __DEBUG__
       /* Display damaged regions */
       xcb_xfixes_fetch_region_reply_t *r = \
@@ -343,8 +335,20 @@ _unagi_event_callback(EV_P_ ev_io *w, int revents)
 
       /* Some events may have been queued while calling this callback,
          so make sure by calling this watcher again */
-      ev_invoke(globalconf.event_loop, w, 0);
+      ev_invoke(globalconf.event_loop, &globalconf.event_io_watcher, 0);
     }
+}
+
+static void
+_unagi_io_callback(EV_P_ ev_io *w, int revents)
+{
+  /* Check X connection to avoid SIGSEGV */
+  if(xcb_connection_has_error(globalconf.connection))
+    fatal("X connection invalid");
+
+  /* Process all events in the queue because before painting, all the
+     DamageNotify have to be received */
+  event_handle_poll_loop(event_handle);
 }
 
 int
@@ -395,6 +399,7 @@ main(int argc, char **argv)
   xcb_prefetch_extension_data(globalconf.connection, &xcb_composite_id);
   xcb_prefetch_extension_data(globalconf.connection, &xcb_damage_id);
   xcb_prefetch_extension_data(globalconf.connection, &xcb_xfixes_id);
+  xcb_prefetch_extension_data(globalconf.connection, &xcb_randr_id);
 
   /* Pre-initialisation of the rendering backend */
   if(!rendering_load())
@@ -414,11 +419,10 @@ main(int argc, char **argv)
     xcb_ewmh_get_wm_cm_owner(&globalconf.ewmh, globalconf.screen_nbr);
 
   /* Initialiase libev event watcher on XCB connection */
-  ev_io x_io = { .fd = -1 };
-  ev_io_init(&x_io, _unagi_event_callback,
+  ev_io_init(&globalconf.event_io_watcher, _unagi_io_callback,
              xcb_get_file_descriptor(globalconf.connection), EV_READ);
 
-  ev_io_start(globalconf.event_loop, &x_io);
+  ev_io_start(globalconf.event_loop, &globalconf.event_io_watcher);
 
   /* Flush the X events queue before blocking */
   ev_prepare x_prepare;
@@ -455,6 +459,13 @@ main(int argc, char **argv)
   display_init_extensions_finalise();
   if(!(*globalconf.rendering->init_finalise)())
     return EXIT_FAILURE;
+
+  xcb_randr_get_screen_info_cookie_t randr_screen_cookie = { .sequence = 0 };
+  if(globalconf.extensions.randr)
+    /* Get the screen  refresh rate to calculate  the interval between
+       painting */
+    randr_screen_cookie = xcb_randr_get_screen_info(globalconf.connection,
+                                                    globalconf.screen->root);
 
   /* All the plugins given in the configuration file */
   plugin_load_all();
@@ -497,6 +508,38 @@ main(int argc, char **argv)
      don't meet the requirements */
   plugin_check_requirements();
 
+  /* TODO: Handle RandR events  and also get the  maximum refresh rate
+           of all screens rather than the default one */
+  xcb_randr_get_screen_info_reply_t *randr_screen_reply = NULL;
+  if(randr_screen_cookie.sequence &&
+     (randr_screen_reply = xcb_randr_get_screen_info_reply(globalconf.connection,
+                                                           randr_screen_cookie,
+                                                           NULL)))
+    {
+      float rate = 1 / (float) randr_screen_reply->rate;
+      free(randr_screen_reply);
+
+      if(rate < 0.002)
+        {
+          warn("Got refresh rate > 500Hz, set it to 500Hz");
+          rate = (float) 0.001;
+        }
+
+      globalconf.repaint_interval = rate;
+    }
+  else
+    {
+      warn("Could not get screen refresh rate, set it to 50Hz");
+      globalconf.repaint_interval = (float) DEFAULT_REPAINT_INTERVAL;
+    }
+
+  /* Initialise painting timer depending on the screen refresh rate */
+  ev_timer timer;
+  ev_timer_init(&timer, _unagi_paint_callback, globalconf.repaint_interval,
+                globalconf.repaint_interval);
+
+  ev_timer_start(globalconf.event_loop, &timer);
+
   /* Get the lock masks reply of the request previously sent */ 
   key_lock_mask_get_reply(key_mapping_cookie);
 
@@ -512,7 +555,10 @@ main(int argc, char **argv)
   ev_ref(globalconf.event_loop);
   ev_prepare_stop(globalconf.event_loop, &x_prepare);
   ev_ref(globalconf.event_loop);
-  ev_io_stop(globalconf.event_loop, &x_io);
+  ev_io_stop(globalconf.event_loop, &globalconf.event_io_watcher);
+
+  ev_ref(globalconf.event_loop);
+  ev_timer_stop(globalconf.event_loop, &timer);
 
   return EXIT_SUCCESS;
 }

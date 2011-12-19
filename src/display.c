@@ -28,6 +28,7 @@
 #include <xcb/composite.h>
 #include <xcb/xfixes.h>
 #include <xcb/damage.h>
+#include <xcb/randr.h>
 #include <xcb/xcb_ewmh.h>
 #include <xcb/xcb_aux.h>
 
@@ -46,6 +47,8 @@ typedef struct {
   xcb_damage_query_version_cookie_t damage;
   /** Composite QueryVersion request cookie */
   xcb_composite_query_version_cookie_t composite;
+  /** RandR QueryVersion request cookie */
+  xcb_randr_query_version_cookie_t randr;
 }  init_extensions_cookies_t;
 
 /** NOTICE:  All above  variables are  not thread-safe,  but  well, we
@@ -54,7 +57,7 @@ typedef struct {
 /** Initialise the  QueryVersion extensions cookies with  a 0 sequence
     number, this  is not thread-safe but  we don't care here  as it is
     only used during initialisation */
-static init_extensions_cookies_t _init_extensions_cookies = { { 0 }, { 0 }, { 0 } };
+static init_extensions_cookies_t _init_extensions_cookies = {{0}, {0}, {0}, {0}};
 
 /** Cookie request used when acquiring ownership on _NET_WM_CM_Sn */
 static xcb_get_selection_owner_cookie_t _get_wm_cm_owner_cookie = { 0 };
@@ -81,6 +84,9 @@ display_init_extensions(void)
 
   globalconf.extensions.damage = xcb_get_extension_data(globalconf.connection,
 							&xcb_damage_id);
+
+  globalconf.extensions.randr = xcb_get_extension_data(globalconf.connection,
+                                                       &xcb_randr_id);
 
   if(!globalconf.extensions.composite ||
      !globalconf.extensions.composite->present)
@@ -117,6 +123,14 @@ display_init_extensions(void)
     xcb_xfixes_query_version_unchecked(globalconf.connection,
 				       XCB_XFIXES_MAJOR_VERSION,
 				       XCB_XFIXES_MINOR_VERSION);
+
+  if(globalconf.extensions.randr && globalconf.extensions.randr->present)
+    _init_extensions_cookies.randr =
+      xcb_randr_query_version(globalconf.connection,
+                              XCB_RANDR_MAJOR_VERSION,
+                              XCB_RANDR_MINOR_VERSION);
+  else
+    globalconf.extensions.randr = NULL;
 }
 
 /** Get the  replies of the QueryVersion requests  previously sent and
@@ -170,6 +184,23 @@ display_init_extensions_finalise(void)
     }
 
   free(xfixes_version_reply);
+
+  /* Need refresh rates support introduced in version >= 1.1 */
+  if(globalconf.extensions.randr)
+    {
+      assert(_init_extensions_cookies.randr.sequence);
+
+      xcb_randr_query_version_reply_t *randr_version_reply =
+        xcb_randr_query_version_reply(globalconf.connection,
+                                      _init_extensions_cookies.randr,
+                                      NULL);
+
+      if(!randr_version_reply || randr_version_reply->major_version < 1 ||
+         randr_version_reply->minor_version < 1)
+        globalconf.extensions.randr = NULL;
+
+      free(randr_version_reply);
+    }
 }
 
 /** Handler for  PropertyNotify event meaningful to  set the timestamp

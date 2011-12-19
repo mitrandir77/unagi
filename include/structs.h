@@ -46,7 +46,13 @@ typedef struct _display_extensions_t
   const xcb_query_extension_reply_t *xfixes;
   /** The Damage extension information */
   const xcb_query_extension_reply_t *damage;
+  /** The RandR extension information */
+  const xcb_query_extension_reply_t *randr;
 } display_extensions_t;
+
+/* Repaint interval to 20ms (50Hz) if  it could not have been obtained
+   from RandR */
+#define DEFAULT_REPAINT_INTERVAL 0.02
 
 /** Global structure holding variables used all across the program */
 typedef struct _conf_t
@@ -55,6 +61,9 @@ typedef struct _conf_t
   bool verbose;
   /** libev event loop */
   struct ev_loop *event_loop;
+  /** libev I/O watcher on XCB FD, invoked in paint callback to ensure
+      that no events have been queued while calling the callback */
+  ev_io event_io_watcher;
 
   /** The XCB connection structure */
   xcb_connection_t *connection;
@@ -62,6 +71,8 @@ typedef struct _conf_t
   int screen_nbr;
   /** The screen information */
   xcb_screen_t *screen;
+  /** Interval between painting (ms) (from screen refresh rate) */
+  float repaint_interval;
   /** EWMH-related information */
   xcb_ewmh_connection_t ewmh;
   /** The X extensions information */
