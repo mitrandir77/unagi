@@ -30,6 +30,7 @@
 #include <xcb/xfixes.h>
 
 #include <confuse.h>
+#include <ev.h>
 
 #include "window.h"
 #include "rendering.h"
@@ -52,6 +53,9 @@ typedef struct _conf_t
 {
   /** Verbose mode (disabled by default) */
   bool verbose;
+  /** libev event loop */
+  struct ev_loop *event_loop;
+
   /** The XCB connection structure */
   xcb_connection_t *connection;
   /** The screen number as defined by the protocol */

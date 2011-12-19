@@ -23,7 +23,6 @@
 
 #include <stdio.h>
 #include <unistd.h>
-#include <signal.h>
 #include <string.h>
 #include <dlfcn.h>
 #include <getopt.h>
@@ -198,10 +197,6 @@ exit_cleanup(void)
 {
   debug("Cleaning resources up");
 
-  /* Destroy CM window, thus giving up _NET_WM_CM_Sn ownership */
-  if(globalconf.cm_window != XCB_NONE)
-    xcb_destroy_window(globalconf.connection, globalconf.cm_window);
-
   /* Free resources related to the plugins */
   plugin_unload_all();
 
@@ -225,26 +220,161 @@ exit_cleanup(void)
   free(globalconf.rendering_dir);
   free(globalconf.plugins_dir);
 
-  xcb_disconnect(globalconf.connection);
+  /* Free resources related to X connection */
+  if(globalconf.connection)
+    {
+      /* Destroy CM window, thus giving up _NET_WM_CM_Sn ownership */
+      if(globalconf.cm_window != XCB_NONE)
+        xcb_destroy_window(globalconf.connection, globalconf.cm_window);
+
+      xcb_disconnect(globalconf.connection);
+    }
+
+  ev_loop_destroy(globalconf.event_loop);
 }
 
 /** Perform  cleanup when  a  signal (SIGHUP,  SIGINT  or SIGTERM)  is
  *  received
  */
 static void
-exit_on_signal(int sig __attribute__((unused)))
+exit_on_signal(struct ev_loop *loop, ev_signal *w, int revents)
 {
-  exit_cleanup();
+  ev_break(loop, EVBREAK_ALL);
+}
 
-  /* Exit  the  program without  calling  the  function register  with
-     atexit() */
-  _exit(EXIT_FAILURE);
+static void
+_unagi_prepare_callback(EV_P_ ev_prepare *w, int revents)
+{
+  xcb_flush(globalconf.connection);
+}
+
+static void
+_unagi_event_callback(EV_P_ ev_io *w, int revents)
+{
+#ifdef __DEBUG__
+  /* Meaningful to measure painting performances */
+  static double paint_time_sum = 0;
+  static double paint_time_min = DBL_MAX;
+  static double paint_time_max = 0;
+
+  /* For online computation of standard deviation */
+  static double paint_time_mean = 0;
+  static double paint_time_variance_sum = 0;
+  static unsigned int paint_counter = 0;
+#endif
+
+  /* Check X connection to avoid SIGSEGV */
+  if(xcb_connection_has_error(globalconf.connection))
+    fatal("X connection invalid");
+
+  /* Process all events in the queue because before painting, all the
+     DamageNotify have to be received */
+  event_handle_poll_loop(event_handle);
+
+  /* Now paint the windows */
+  if(globalconf.damaged)
+    {
+#ifdef __DEBUG__
+      debug("COUNT: %u: Begin re-painting", paint_counter);
+#endif
+      window_t *windows = NULL;
+      for(plugin_t *plugin = globalconf.plugins; plugin; plugin = plugin->next)
+        if(plugin->enable && plugin->vtable->render_windows &&
+           (windows = (*plugin->vtable->render_windows)()))
+          break;
+
+      if(!windows)
+        windows = globalconf.windows;
+
+#ifdef __DEBUG__
+      /* Display damaged regions */
+      xcb_xfixes_fetch_region_reply_t *r = \
+        xcb_xfixes_fetch_region_reply(globalconf.connection,
+                                      xcb_xfixes_fetch_region(globalconf.connection,
+                                                              globalconf.damaged),
+                                      NULL);
+      if(r)
+        {
+          xcb_rectangle_t *rects = xcb_xfixes_fetch_region_rectangles(r);
+
+          for(int i = 0; i < xcb_xfixes_fetch_region_rectangles_length(r);
+              i++)
+            debug("Damaged region #%d: %dx%d +%d+%d",
+                  i, rects[i].width, rects[i].height,
+                  rects[i].x, rects[i].y);
+
+          free(r);
+        }
+
+      struct timespec start, end;
+      clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+#endif /* __DEBUG__ */
+      window_paint_all(windows);
+      xcb_aux_sync(globalconf.connection);
+#ifdef __DEBUG__
+      clock_gettime(CLOCK_MONOTONIC_RAW, &end);
+
+      ++paint_counter;
+
+      double paint_time = (double)
+        (((end.tv_nsec - start.tv_nsec) / 1000000.0) +
+         ((end.tv_sec - start.tv_sec) * 1000));
+
+      if(paint_time < paint_time_min)
+        paint_time_min = paint_time;
+      if(paint_time > paint_time_max)
+        paint_time_max = paint_time;
+
+      paint_time_sum += paint_time;
+
+      /* Compute standard deviation for this iteration */
+      const double delta = paint_time - paint_time_mean;
+      paint_time_mean += (double) delta / paint_counter;
+      paint_time_variance_sum += delta * (paint_time - paint_time_mean);
+
+      debug("Painting time in ms (#%u): %.2f, min=%.2f, max=%.2f, "
+            "average=%.2f (+/- %.1Lf)",
+            paint_counter, paint_time, paint_time_min, paint_time_max,
+            paint_time_sum / paint_counter,
+            sqrtl(paint_time_variance_sum / paint_counter));
+#endif /* __DEBUG__ */
+      display_reset_damaged();
+      debug("Finish re-painting");
+
+      /* Some events may have been queued while calling this callback,
+         so make sure by calling this watcher again */
+      ev_invoke(globalconf.event_loop, w, 0);
+    }
 }
 
 int
 main(int argc, char **argv)
 {
   memset(&globalconf, 0, sizeof(globalconf));
+
+  parse_command_line_parameters(argc, argv);
+
+  /* libev event loop */
+  globalconf.event_loop = ev_default_loop(EVFLAG_NOINOTIFY | EVFLAG_NOSIGMASK);
+
+  /* Set up signal handlers */
+  ev_signal sighup;
+  ev_signal_init(&sighup, exit_on_signal, SIGHUP);
+  ev_signal_start(globalconf.event_loop, &sighup);
+  ev_unref(globalconf.event_loop);
+
+  ev_signal sigint;
+  ev_signal_init(&sigint, exit_on_signal, SIGINT);
+  ev_signal_start(globalconf.event_loop, &sigint);
+  ev_unref(globalconf.event_loop);
+
+  ev_signal sigterm;
+  ev_signal_init(&sigterm, exit_on_signal, SIGTERM);
+  ev_signal_start(globalconf.event_loop, &sigterm);
+  ev_unref(globalconf.event_loop);
+
+  /* Cleanup resources upon normal exit */
+  atexit(exit_cleanup);
 
   globalconf.connection = xcb_connect(NULL, &globalconf.screen_nbr);
   if(xcb_connection_has_error(globalconf.connection))
@@ -254,26 +384,12 @@ main(int argc, char **argv)
   globalconf.screen = xcb_aux_get_screen(globalconf.connection,
 					 globalconf.screen_nbr);
 
-  /* Set up signal handlers and function called on normal exit */
-  struct sigaction sa;
-  sigemptyset(&sa.sa_mask);
-  sa.sa_handler = exit_on_signal;
-  sa.sa_flags = 0;
-
-  sigaction(SIGHUP, &sa, NULL);
-  sigaction(SIGINT, &sa, NULL);
-  sigaction(SIGTERM, &sa, NULL);
-
-  atexit(exit_cleanup);
-
   /**
    * First round-trip
    */
 
   /* Send requests for EWMH atoms initialisation */
   xcb_intern_atom_cookie_t *ewmh_cookies = atoms_init();
-
-  parse_command_line_parameters(argc, argv);
 
   /* Prefetch the extensions data */
   xcb_prefetch_extension_data(globalconf.connection, &xcb_composite_id);
@@ -296,6 +412,18 @@ main(int argc, char **argv)
   /* First check whether there is already a Compositing Manager (ICCCM) */
   xcb_get_selection_owner_cookie_t wm_cm_owner_cookie =
     xcb_ewmh_get_wm_cm_owner(&globalconf.ewmh, globalconf.screen_nbr);
+
+  /* Initialiase libev event watcher on XCB connection */
+  ev_io x_io = { .fd = -1 };
+  ev_io_init(&x_io, _unagi_event_callback,
+             xcb_get_file_descriptor(globalconf.connection), EV_READ);
+
+  ev_io_start(globalconf.event_loop, &x_io);
+
+  /* Flush the X events queue before blocking */
+  ev_prepare x_prepare;
+  ev_prepare_init(&x_prepare, _unagi_prepare_callback);
+  ev_prepare_start(globalconf.event_loop, &x_prepare);
 
   /**
    * Second round-trip
@@ -376,110 +504,15 @@ main(int argc, char **argv)
      may have been received in the meantime */
   xcb_flush(globalconf.connection);
 
-#ifdef __DEBUG__
-  /* Meaningful to measure painting performances */
-  double paint_time_sum = 0;
-  double paint_time_min = DBL_MAX;
-  double paint_time_max = 0;
-
-  /* For online computation of standard deviation */
-  double paint_time_mean = 0;
-  double paint_time_variance_sum = 0;
-  unsigned int paint_counter = 0;
-#endif
-
   window_paint_all(globalconf.windows);
 
   /* Main event and error loop */
-  xcb_generic_event_t *event;
-  do
-    {
-      /* Block until an event is received */
-      event = xcb_wait_for_event(globalconf.connection);
+  ev_run(globalconf.event_loop, 0);
 
-      /* Check X connection to avoid SIGSEGV */
-      if(xcb_connection_has_error(globalconf.connection))
-	 fatal("X connection invalid");
-
-      event_handle(event);
-      free(event);
-
-      /* Then process all remaining events in the queue because before
-	 painting, all the DamageNotify have to be received */
-      event_handle_poll_loop(event_handle);
-
-      /* Now paint the windows */
-      if(globalconf.damaged)
-	{
-#ifdef __DEBUG__
-          debug("COUNT: %u: Begin re-painting", paint_counter);
-#endif
-	  window_t *windows = NULL;
-	  for(plugin_t *plugin = globalconf.plugins; plugin; plugin = plugin->next)
-	    if(plugin->enable && plugin->vtable->render_windows &&
-	       (windows = (*plugin->vtable->render_windows)()))
-	      break;
-
-	  if(!windows)
-	    windows = globalconf.windows;
-
-#ifdef __DEBUG__
-          /* Display damaged regions */
-          xcb_xfixes_fetch_region_reply_t *r = \
-            xcb_xfixes_fetch_region_reply(globalconf.connection,
-                                          xcb_xfixes_fetch_region(globalconf.connection,
-                                                                  globalconf.damaged),
-                                          NULL);
-          if(r)
-            {
-              xcb_rectangle_t *rects = xcb_xfixes_fetch_region_rectangles(r);
-
-              for(int i = 0; i < xcb_xfixes_fetch_region_rectangles_length(r);
-                  i++)
-                debug("Damaged region #%d: %dx%d +%d+%d",
-                      i, rects[i].width, rects[i].height,
-                      rects[i].x, rects[i].y);
-
-              free(r);
-            }
-
-          struct timespec start, end;
-          clock_gettime(CLOCK_MONOTONIC_RAW, &start);
-#endif /* __DEBUG__ */
-	  window_paint_all(windows);
-	  xcb_aux_sync(globalconf.connection);
-#ifdef __DEBUG__
-          clock_gettime(CLOCK_MONOTONIC_RAW, &end);
-
-          ++paint_counter;
-
-          double paint_time = (double)
-              (((end.tv_nsec - start.tv_nsec) / 1000000.0) +
-               ((end.tv_sec - start.tv_sec) * 1000));
-
-          if(paint_time < paint_time_min)
-            paint_time_min = paint_time;
-          if(paint_time > paint_time_max)
-            paint_time_max = paint_time;
-
-          paint_time_sum += paint_time;
-
-          /* Compute standard deviation for this iteration */
-          const double delta = paint_time - paint_time_mean;
-          paint_time_mean += (double) delta / paint_counter;
-          paint_time_variance_sum += delta * (paint_time - paint_time_mean);
-
-          debug("Painting time in ms (#%u): %.2f, min=%.2f, max=%.2f, "
-                "average=%.2f (+/- %.1Lf)",
-                paint_counter, paint_time, paint_time_min, paint_time_max,
-                paint_time_sum / paint_counter,
-                sqrtl(paint_time_variance_sum / paint_counter));
-#endif /* __DEBUG__ */
-          display_reset_damaged();
-          debug("Finish re-painting");
-	}
-    }
-  while(true);
+  ev_ref(globalconf.event_loop);
+  ev_prepare_stop(globalconf.event_loop, &x_prepare);
+  ev_ref(globalconf.event_loop);
+  ev_io_stop(globalconf.event_loop, &x_io);
 
   return EXIT_SUCCESS;
 }

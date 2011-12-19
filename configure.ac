@@ -42,6 +42,9 @@ PKG_CHECK_MODULES(UNAGI, $UNAGI_REQUIRES)
 AC_SUBST(UNAGI_CFLAGS)
 AC_SUBST(UNAGI_LIBS)
 
+# Check for libev (no pkg-config)
+AC_SEARCH_LIBS([ev_default_loop], [ev], [], [AC_MSG_ERROR([Require libev])])
+
 PKG_CHECK_MODULES(RENDER_BACKEND, [
 	  xcb-renderutil
 	  xcb-render
