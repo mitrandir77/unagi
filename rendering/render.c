@@ -46,6 +46,8 @@ typedef struct
   xcb_render_picture_t background_picture;
   /** All Picture formats supported by the screen */
   xcb_render_query_pict_formats_reply_t *pict_formats;
+  /** A8 PictFormat used mainly for alpha Picture (opacity) */
+  xcb_render_pictformat_t a8_pictformat_id;
   /** Picture Visual supported by the screen */
   xcb_render_pictvisual_t *pictvisual;
 } _render_conf_t;
@@ -300,6 +302,12 @@ _render_init_root_picture(void)
       return false;
     }
 
+  /* Used to be computed at each creation of the Window alpha Picture,
+     but seems to be rather costly (as per callgrind) */
+  _render_conf.a8_pictformat_id =
+    xcb_render_util_find_standard_format(_render_conf.pict_formats,
+                                         XCB_PICT_STANDARD_A_8)->id;
+
   /* Create Picture associated with the root window */
   {
     _render_conf.picture = xcb_generate_id(globalconf.connection);
@@ -401,8 +409,7 @@ _render_create_window_alpha_picture(xcb_render_picture_t *alpha_picture,
   xcb_render_create_picture(globalconf.connection,
 			    *alpha_picture,
 			    pixmap,
-			    xcb_render_util_find_standard_format(_render_conf.pict_formats,
-								 XCB_PICT_STANDARD_A_8)->id,
+			    _render_conf.a8_pictformat_id,
 			    XCB_RENDER_CP_REPEAT,
 			    &create_picture_val);
 
