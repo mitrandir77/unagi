@@ -433,6 +433,12 @@ main(int argc, char **argv)
    * Second round-trip
    */
 
+  /* All the plugins given in the configuration file
+
+     TODO: Only there because render_init() needs to be able to look
+     for opacity plugin */
+  plugin_load_all();
+
   /* Initialise   extensions   based   on   the  cache   and   perform
      initialisation of the rendering backend */
   display_init_extensions();
@@ -466,9 +472,6 @@ main(int argc, char **argv)
        painting */
     randr_screen_cookie = xcb_randr_get_screen_info(globalconf.connection,
                                                     globalconf.screen->root);
-
-  /* All the plugins given in the configuration file */
-  plugin_load_all();
 
   /* Validate  errors   and  get  PropertyNotify   needed  to  acquire
      _NET_WM_CM_Sn ownership */

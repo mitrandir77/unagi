@@ -50,6 +50,9 @@ typedef struct
   xcb_render_pictformat_t a8_pictformat_id;
   /** Picture Visual supported by the screen */
   xcb_render_pictvisual_t *pictvisual;
+  /** Only the opacity plugins needs such hook ATM, but well something
+      more generic will be written if needed */
+  plugin_t *opacity_plugin;
 } _render_conf_t;
 
 static _render_conf_t _render_conf;
@@ -159,6 +162,8 @@ render_init(void)
 
   /* Send requests to get the root window background pixmap */ 
   window_get_root_background_pixmap();
+
+  _render_conf.opacity_plugin = plugin_search_by_name("opacity");
 
   return true;
 }
@@ -481,13 +486,11 @@ render_paint_window(window_t *window)
   xcb_render_picture_t window_alpha_picture;
 
   {
-    /* Only  the  opacity  plugins  needs  such  hook  ATM,  but  well
-       something more generic will be written if needed */
-    plugin_t *opacity_plugin = plugin_search_by_name("opacity");
     uint16_t opacity;
 
-    if(opacity_plugin && opacity_plugin->vtable->window_get_opacity &&
-       (opacity = (*opacity_plugin->vtable->window_get_opacity)(window)) != UINT16_MAX)
+    if(_render_conf.opacity_plugin &&
+       _render_conf.opacity_plugin->vtable->window_get_opacity &&
+       (opacity = (*_render_conf.opacity_plugin->vtable->window_get_opacity)(window)) != UINT16_MAX)
       {
         /* Re-create the alpha Picture if the opacity was changed */
         if(render_window->alpha_picture &&
