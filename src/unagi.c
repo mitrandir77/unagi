@@ -548,6 +548,7 @@ main(int argc, char **argv)
   xcb_flush(globalconf.connection);
 
   window_paint_all(globalconf.windows);
+  ev_invoke(globalconf.event_loop, &globalconf.event_io_watcher, 0);
 
   /* Main event and error loop */
   ev_run(globalconf.event_loop, 0);
