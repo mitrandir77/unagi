@@ -427,6 +427,7 @@ main(int argc, char **argv)
   ev_prepare x_prepare;
   ev_prepare_init(&x_prepare, _unagi_prepare_callback);
   ev_prepare_start(globalconf.event_loop, &x_prepare);
+  ev_unref(globalconf.event_loop);
 
   /**
    * Second round-trip
@@ -542,6 +543,7 @@ main(int argc, char **argv)
                 globalconf.repaint_interval);
 
   ev_timer_start(globalconf.event_loop, &timer);
+  ev_unref(globalconf.event_loop);
 
   /* Get the lock masks reply of the request previously sent */ 
   key_lock_mask_get_reply(key_mapping_cookie);
@@ -560,7 +562,6 @@ main(int argc, char **argv)
   ev_prepare_stop(globalconf.event_loop, &x_prepare);
   ev_ref(globalconf.event_loop);
   ev_io_stop(globalconf.event_loop, &globalconf.event_io_watcher);
-
   ev_ref(globalconf.event_loop);
   ev_timer_stop(globalconf.event_loop, &timer);
 
