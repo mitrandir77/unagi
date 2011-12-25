@@ -611,4 +611,5 @@ window_paint_all(window_t *windows)
     }
 
   (*globalconf.rendering->paint_all)();
+  xcb_aux_sync(globalconf.connection);
 }

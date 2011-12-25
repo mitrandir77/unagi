@@ -302,7 +302,6 @@ _unagi_paint_callback(EV_P_ ev_timer *w, int revents)
       clock_gettime(CLOCK_MONOTONIC_RAW, &start);
 #endif /* __DEBUG__ */
       window_paint_all(windows);
-      xcb_aux_sync(globalconf.connection);
 #ifdef __DEBUG__
       clock_gettime(CLOCK_MONOTONIC_RAW, &end);
 
