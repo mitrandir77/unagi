@@ -516,7 +516,8 @@ main(int argc, char **argv)
   if(randr_screen_cookie.sequence &&
      (randr_screen_reply = xcb_randr_get_screen_info_reply(globalconf.connection,
                                                            randr_screen_cookie,
-                                                           NULL)))
+                                                           NULL)) &&
+     randr_screen_reply->rate)
     {
       float rate = 1 / (float) randr_screen_reply->rate;
       free(randr_screen_reply);
