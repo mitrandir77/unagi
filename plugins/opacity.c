@@ -66,12 +66,18 @@ opacity_window_t *_opacity_windows = NULL;
  * \param window_id The Window XID
  * \return The GetProperty cookie associated with the request
  */
-static xcb_get_property_cookie_t
+static inline xcb_get_property_cookie_t
 _opacity_get_property(xcb_window_t window_id)
 {
-  return xcb_get_property_unchecked(globalconf.connection, 0, window_id,
-				    _NET_WM_WINDOW_OPACITY, XCB_ATOM_CARDINAL,
-                                    0, 1);
+  xcb_get_property_cookie_t cookie =
+    xcb_get_property_unchecked(globalconf.connection, 0, window_id,
+                               _NET_WM_WINDOW_OPACITY, XCB_ATOM_CARDINAL,
+                               0, 1);
+
+  /* Flush to  make sure the request  is sent ASAP and  avoid blocking
+     later on */
+  xcb_flush(globalconf.connection);
+  return cookie;
 }
 
 /** Get the  reply of the previously  sent request to  get the opacity
