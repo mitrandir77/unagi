@@ -493,8 +493,7 @@ _render_unref_window_alpha_picture(_render_window_t *render_window)
         render_window->alpha_picture->next->previous =
           render_window->alpha_picture->previous;
 
-      free(render_window->alpha_picture);
-      render_window->alpha_picture = NULL;
+      util_free(&render_window->alpha_picture);
     }
   else
     --render_window->alpha_picture->reference_counter;
