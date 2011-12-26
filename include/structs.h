@@ -57,8 +57,6 @@ typedef struct _display_extensions_t
 /** Global structure holding variables used all across the program */
 typedef struct _conf_t
 {
-  /** Verbose mode (disabled by default) */
-  bool verbose;
   /** libev event loop */
   struct ev_loop *event_loop;
   /** libev I/O watcher on XCB FD, invoked in paint callback to ensure

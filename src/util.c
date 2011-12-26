@@ -28,7 +28,7 @@
 #include "structs.h"
 #include "util.h"
 
-#define DO_DISPLAY_MESSAGE(LABEL)			\
+#define DO_DISPLAY_MESSAGE(LABEL)                       \
   {                                                     \
     va_list ap;                                         \
     va_start(ap, fmt);                                  \
@@ -72,8 +72,16 @@ _warn(const int line, const char *func, const char *fmt, ...)
  * \param fmt Format of the message
  */
 void
+#ifdef __DEBUG__
 _debug(const int line, const char *func, const char *fmt, ...)
 {
-  if(globalconf.verbose)
-    DO_DISPLAY_MESSAGE("DEBUG")
+  DO_DISPLAY_MESSAGE("DEBUG")
 }
+#else
+_debug(const int line __attribute__((unused)),
+       const char *func __attribute__((unused)),
+       const char *fmt __attribute__((unused)),
+       ...)
+{
+}
+#endif

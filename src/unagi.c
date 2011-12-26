@@ -89,8 +89,7 @@ display_help(void)
 {
   printf("Usage: " PACKAGE_NAME "[options]\n\
   -h, --help                show help\n\
-  -V, --version             show version\n\
-  -v, --verbose             run in verbose mode\n\
+  -v, --version             show version\n\
   -c, --config FILE         configuration file path\n\
   -r, --rendering-path PATH rendering backend path\n\
   -p, --plugins-path PATH   plugins path\n");
@@ -106,7 +105,6 @@ parse_command_line_parameters(int argc, char **argv)
 {
   const struct option long_options[] = {
     { "help", 0, NULL, 'h' },
-    { "version", 0, NULL, 'V' },
     { "version", 0, NULL, 'v' },
     { "config", 1, NULL, 'c' },
     { "rendering-path", 1, NULL, 'r' },
@@ -117,12 +115,12 @@ parse_command_line_parameters(int argc, char **argv)
   int opt;
   FILE *config_fp = NULL;
 
-  while((opt = getopt_long(argc, argv, "hVvc:r:p:",
+  while((opt = getopt_long(argc, argv, "vhc:r:p:",
 			   long_options, NULL)) != -1)
     {
       switch(opt)
 	{
-	case 'V':
+	case 'v':
 	  printf(VERSION);
 	  exit(EXIT_SUCCESS);
 	  break;
@@ -130,9 +128,6 @@ parse_command_line_parameters(int argc, char **argv)
 	  display_help();
 	  exit(EXIT_SUCCESS);
 	  break;
-        case 'v':
-          globalconf.verbose = true;
-          break;
 	case 'c':
 	  if(!strlen(optarg) || !(config_fp = fopen(optarg, "r")))
 	    {
