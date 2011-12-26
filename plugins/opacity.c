@@ -123,6 +123,7 @@ _opacity_window_new(window_t *window)
      request to get the actual  property value (this way get the reply
      as late as possible) */
   new_opacity_window->cookie = _opacity_get_property(window->id);
+  new_opacity_window->opacity = OPACITY_OPAQUE;
 
   return new_opacity_window;
 }

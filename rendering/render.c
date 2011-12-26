@@ -33,6 +33,24 @@
 #include "plugin.h"
 #include "util.h"
 
+/** Global alpha Pictures cache. This avoids creating an alpha Picture
+    for each window */
+typedef struct __render_alpha_picture_t
+{
+  /** Alpha Picture of the Window */
+  xcb_render_picture_t picture;
+  /** Number of windows currently using this Picture (free the Picture
+      once it reaches 0) */
+  unsigned int reference_counter;
+  /** Alpha Picture opacity */
+  uint16_t opacity;
+  /** Double linked list, perhaps there is a more efficient way, such
+      as hash table but as there are usually not so many opacity
+      pictures... */
+  struct __render_alpha_picture_t *next;
+  struct __render_alpha_picture_t *previous;
+} _render_alpha_picture_t;
+
 /** Information related to Render */
 typedef struct
 {
@@ -53,6 +71,8 @@ typedef struct
   /** Only the opacity plugins needs such hook ATM, but well something
       more generic will be written if needed */
   plugin_t *opacity_plugin;
+  /** Alpha pictures list */
+  _render_alpha_picture_t *alpha_pictures;
 } _render_conf_t;
 
 static _render_conf_t _render_conf;
@@ -62,10 +82,8 @@ typedef struct
 {
   /** Picture associated with the Window Pixmap */
   xcb_render_picture_t picture;
-  /** Alpha Picture of the Window */ 
-  xcb_render_picture_t alpha_picture;
-  /** Alpha Picture opacity of the Window */
-  uint32_t opacity;
+  /** Pointer to global alpha picture */
+  _render_alpha_picture_t *alpha_picture;
 } _render_window_t;
 
 /** Request label of Render extension for X error reporting, which are
@@ -164,6 +182,7 @@ render_init(void)
   window_get_root_background_pixmap();
 
   _render_conf.opacity_plugin = plugin_search_by_name("opacity");
+  _render_conf.alpha_pictures = NULL;
 
   return true;
 }
@@ -386,7 +405,7 @@ render_reset_background(void)
   xcb_render_free_picture(globalconf.connection,
 			  _render_conf.background_picture);
 
-  /* Send requests to get the root window background pixmap */ 
+  /* Send requests to get the root window background pixmap */
   window_get_root_background_pixmap();
 
   _render_init_root_background();
@@ -395,13 +414,29 @@ render_reset_background(void)
 /** Create the alpha Picture associated  with a window by only filling
  *  it with the alpha channel value
  *
- * \param alpha_picture The alpha Picture of the Window
+ * \param render_window Rendering backend window
  * \param opacity The Window opacity
+ * \return The newly created alpha picture data structure
  */
-static void
-_render_create_window_alpha_picture(xcb_render_picture_t *alpha_picture,
-				    const uint16_t opacity)
+static _render_alpha_picture_t *
+_render_create_window_alpha_picture(_render_window_t *render_window,
+                                    const uint16_t opacity)
 {
+  /* Create a new global alpha_picture */
+  _render_alpha_picture_t *alpha_picture = malloc(sizeof(_render_alpha_picture_t));
+  render_window->alpha_picture = alpha_picture;
+
+  alpha_picture->reference_counter = 1;
+  alpha_picture->opacity = opacity;
+
+  /* Insert it at the beginning of global alpha pictures list */
+  alpha_picture->previous = NULL;
+  alpha_picture->next = _render_conf.alpha_pictures;
+  if(_render_conf.alpha_pictures)
+    _render_conf.alpha_pictures->previous = alpha_picture;
+
+  _render_conf.alpha_pictures = alpha_picture;
+
   const xcb_pixmap_t pixmap = xcb_generate_id(globalconf.connection);
 
   xcb_create_pixmap(globalconf.connection, 8, pixmap,
@@ -409,10 +444,10 @@ _render_create_window_alpha_picture(xcb_render_picture_t *alpha_picture,
 
   const uint32_t create_picture_val = true;
 
-  *alpha_picture = xcb_generate_id(globalconf.connection);
+  alpha_picture->picture = xcb_generate_id(globalconf.connection);
 
   xcb_render_create_picture(globalconf.connection,
-			    *alpha_picture,
+                            alpha_picture->picture,
 			    pixmap,
 			    _render_conf.a8_pictformat_id,
 			    XCB_RENDER_CP_REPEAT,
@@ -427,10 +462,83 @@ _render_create_window_alpha_picture(xcb_render_picture_t *alpha_picture,
 
   xcb_render_fill_rectangles(globalconf.connection,
 			     XCB_RENDER_PICT_OP_SRC,
-			     *alpha_picture,
+                             alpha_picture->picture,
 			     color, 1, &rect);
 
   xcb_free_pixmap(globalconf.connection, pixmap);
+
+  return alpha_picture;
+}
+
+/** Decrement  the reference  counter of  the alpha  picture currently
+ *  associated  with  the  given  rendering  backend  window.  If  the
+ *  reference counter reaches  0, then free its  Picture and allocated
+ *  memory, and update the global alpha picture list.
+ *
+ * \param render_window Rendering backend window
+ */
+static void
+_render_unref_window_alpha_picture(_render_window_t *render_window)
+{
+  if(!render_window->alpha_picture->reference_counter == 1)
+    {
+      xcb_render_free_picture(globalconf.connection,
+                              render_window->alpha_picture->picture);
+
+      if(render_window->alpha_picture->previous)
+        render_window->alpha_picture->previous->next =
+          render_window->alpha_picture->next;
+
+      if(render_window->alpha_picture->next)
+        render_window->alpha_picture->next->previous =
+          render_window->alpha_picture->previous;
+
+      free(render_window->alpha_picture);
+      render_window->alpha_picture = NULL;
+    }
+  else
+    --render_window->alpha_picture->reference_counter;
+}
+
+/** Get the alpha Picture associated  with the given rendering backend
+ *  window, and create it if it does not already exist.
+ *
+ * \param render_window Rendering backend window
+ * \param opacity New opacity value
+ * \return Render Picture XID
+ */
+static xcb_render_picture_t
+_render_get_window_alpha_picture(_render_window_t *render_window,
+                                 const uint16_t opacity)
+{
+  /* Return the Picture XID if  the opacity has not changed, otherwise
+     decrement the reference counter of the previous alpha Picture */
+  if(render_window->alpha_picture)
+    {
+      if(render_window->alpha_picture->opacity == opacity)
+        return render_window->alpha_picture->picture;
+      else
+        _render_unref_window_alpha_picture(render_window);
+    }
+
+  /* Opaque Window, do nothing */
+  if(opacity == UINT16_MAX)
+    return XCB_NONE;
+
+  /* The opacity property  value has changed, try to get  one from the
+     cache if possible */
+  _render_alpha_picture_t *alpha_picture;
+  for(alpha_picture = _render_conf.alpha_pictures; alpha_picture;
+      alpha_picture = alpha_picture->next)
+    if(alpha_picture->opacity == opacity)
+      {
+        ++alpha_picture->reference_counter;
+        render_window->alpha_picture = alpha_picture;
+        return alpha_picture->picture;
+      }
+
+  /* Otherwise, create a new one */
+  return _render_create_window_alpha_picture(render_window, opacity)->picture;
 }
 
 /** Paint the root background to the buffer Picture */
@@ -482,49 +590,19 @@ render_paint_window(window_t *window)
 				&create_picture_val);
     }
 
-  uint8_t render_composite_op;
-  xcb_render_picture_t window_alpha_picture;
+  uint8_t render_composite_op = XCB_RENDER_PICT_OP_SRC;
+  xcb_render_picture_t alpha_picture = XCB_NONE;
 
-  {
-    uint16_t opacity;
+  if(_render_conf.opacity_plugin &&
+     _render_conf.opacity_plugin->vtable->window_get_opacity)
+    {
+      alpha_picture =
+        _render_get_window_alpha_picture(render_window,
+                                         (*_render_conf.opacity_plugin->vtable->window_get_opacity)(window));
 
-    if(_render_conf.opacity_plugin &&
-       _render_conf.opacity_plugin->vtable->window_get_opacity &&
-       (opacity = (*_render_conf.opacity_plugin->vtable->window_get_opacity)(window)) != UINT16_MAX)
-      {
-        /* Re-create the alpha Picture if the opacity was changed */
-        if(render_window->alpha_picture &&
-           render_window->opacity != opacity)
-          {
-            xcb_render_free_picture(globalconf.connection,
-                                    render_window->alpha_picture);
-
-            render_window->alpha_picture = XCB_NONE;
-          }
-
-	if(!render_window->alpha_picture)
-          {
-            _render_create_window_alpha_picture(&render_window->alpha_picture,
-                                                opacity);
-
-            render_window->opacity = opacity;
-          }
-
-	render_composite_op = XCB_RENDER_PICT_OP_OVER;
-	window_alpha_picture = render_window->alpha_picture;
-      }
-    else
-      {
-        /* Make  sure the  alpha  Picture is  freed  after the  Window
-           turned opaque but was previously translucent */
-        if(render_window->alpha_picture != XCB_NONE)
-          xcb_render_free_picture(globalconf.connection,
-                                  render_window->alpha_picture);
-
-	render_composite_op = XCB_RENDER_PICT_OP_SRC;
-	window_alpha_picture = XCB_NONE;
-      }
-  }
+      if(alpha_picture != XCB_NONE)
+        render_composite_op = XCB_RENDER_PICT_OP_OVER;
+    }
 
   /* Only paint  from the  Window Region, otherwise  it does  not work
      properly for non-rectangular windows such as xeyes */
@@ -539,7 +617,9 @@ render_paint_window(window_t *window)
 
   xcb_render_composite(globalconf.connection,
 		       render_composite_op,
-		       render_window->picture, window_alpha_picture, _render_conf.buffer_picture,
+		       render_window->picture,
+                       alpha_picture,
+                       _render_conf.buffer_picture,
 		       0, 0, 0, 0,
 		       window->geometry->x,
 		       window->geometry->y,
@@ -638,7 +718,12 @@ render_free_window_pixmap(window_t *window)
 static void
 render_free_window(window_t *window)
 {
-  free((_render_window_t *) window->rendering);
+  _render_window_t *render_window = (_render_window_t *) window->rendering;
+
+  if(render_window && render_window->alpha_picture)
+    _render_unref_window_alpha_picture(render_window);
+
+  free(render_window);
 }
 
 /** Called on dlclose()  and free all the resources  allocated by this
