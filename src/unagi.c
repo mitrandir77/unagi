@@ -555,7 +555,6 @@ main(int argc, char **argv)
 
   ev_ref(globalconf.event_loop);
   ev_prepare_stop(globalconf.event_loop, &x_prepare);
-  ev_ref(globalconf.event_loop);
   ev_io_stop(globalconf.event_loop, &globalconf.event_io_watcher);
   ev_ref(globalconf.event_loop);
   ev_timer_stop(globalconf.event_loop, &timer);
