@@ -302,9 +302,8 @@ _unagi_paint_callback(EV_P_ ev_timer *w, int revents)
 
       ++paint_counter;
 
-      double paint_time = (double)
-        (((end.tv_nsec - start.tv_nsec) / 1000000.0) +
-         ((end.tv_sec - start.tv_sec) * 1000));
+      double paint_time = (double) (end.tv_nsec - start.tv_nsec) / 1000000 +
+        (double) (end.tv_sec - start.tv_sec) * 1000;
 
       if(paint_time < paint_time_min)
         paint_time_min = paint_time;
