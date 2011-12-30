@@ -68,7 +68,7 @@ conf_t globalconf;
  * \return Return true if parsing succeeded
  */
 static bool
-parse_configuration_file(FILE *config_fp)
+_unagi_parse_configuration_file(FILE *config_fp)
 {
   cfg_opt_t opts[] = {
     CFG_STR("rendering", "render", CFGF_NONE),
@@ -85,7 +85,7 @@ parse_configuration_file(FILE *config_fp)
 
 /** Display help information */
 static inline void
-display_help(void)
+_unagi_display_help(void)
 {
   printf("Usage: " PACKAGE_NAME "[options]\n\
   -h, --help                show help\n\
@@ -101,7 +101,7 @@ display_help(void)
  * \param argv The strings list of arguments
  */
 static void
-parse_command_line_parameters(int argc, char **argv)
+_unagi_parse_command_line_parameters(int argc, char **argv)
 {
   const struct option long_options[] = {
     { "help", 0, NULL, 'h' },
@@ -125,13 +125,13 @@ parse_command_line_parameters(int argc, char **argv)
 	  exit(EXIT_SUCCESS);
 	  break;
 	case 'h':
-	  display_help();
+	  _unagi_display_help();
 	  exit(EXIT_SUCCESS);
 	  break;
 	case 'c':
 	  if(!strlen(optarg) || !(config_fp = fopen(optarg, "r")))
 	    {
-	      display_help();
+	      _unagi_display_help();
 	      exit(EXIT_FAILURE);
 	    }
 	  break;
@@ -168,7 +168,7 @@ parse_command_line_parameters(int argc, char **argv)
     }
 
   /* Parse configuration file */
-  if(!parse_configuration_file(config_fp))
+  if(!_unagi_parse_configuration_file(config_fp))
     {
       fclose(config_fp);
       fatal("Can't parse configuration file");
@@ -189,7 +189,7 @@ parse_command_line_parameters(int argc, char **argv)
 
 /** Perform cleanup on normal exit */
 static void
-exit_cleanup(void)
+_unagi_exit_cleanup(void)
 {
   debug("Cleaning resources up");
 
@@ -233,7 +233,7 @@ exit_cleanup(void)
  *  received
  */
 static void
-exit_on_signal(struct ev_loop *loop, ev_signal *w, int revents)
+_unagi_exit_on_signal(struct ev_loop *loop, ev_signal *w, int revents)
 {
   ev_break(loop, EVBREAK_ALL);
 }
@@ -350,29 +350,29 @@ main(int argc, char **argv)
 {
   memset(&globalconf, 0, sizeof(globalconf));
 
-  parse_command_line_parameters(argc, argv);
+  _unagi_parse_command_line_parameters(argc, argv);
 
   /* libev event loop */
   globalconf.event_loop = ev_default_loop(EVFLAG_NOINOTIFY | EVFLAG_NOSIGMASK);
 
   /* Set up signal handlers */
   ev_signal sighup;
-  ev_signal_init(&sighup, exit_on_signal, SIGHUP);
+  ev_signal_init(&sighup, _unagi_exit_on_signal, SIGHUP);
   ev_signal_start(globalconf.event_loop, &sighup);
   ev_unref(globalconf.event_loop);
 
   ev_signal sigint;
-  ev_signal_init(&sigint, exit_on_signal, SIGINT);
+  ev_signal_init(&sigint, _unagi_exit_on_signal, SIGINT);
   ev_signal_start(globalconf.event_loop, &sigint);
   ev_unref(globalconf.event_loop);
 
   ev_signal sigterm;
-  ev_signal_init(&sigterm, exit_on_signal, SIGTERM);
+  ev_signal_init(&sigterm, _unagi_exit_on_signal, SIGTERM);
   ev_signal_start(globalconf.event_loop, &sigterm);
   ev_unref(globalconf.event_loop);
 
   /* Cleanup resources upon normal exit */
-  atexit(exit_cleanup);
+  atexit(_unagi_exit_cleanup);
 
   globalconf.connection = xcb_connect(NULL, &globalconf.screen_nbr);
   if(xcb_connection_has_error(globalconf.connection))
