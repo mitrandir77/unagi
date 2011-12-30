@@ -480,7 +480,7 @@ _render_create_window_alpha_picture(_render_window_t *render_window,
 static void
 _render_unref_window_alpha_picture(_render_window_t *render_window)
 {
-  if(!render_window->alpha_picture->reference_counter == 1)
+  if(render_window->alpha_picture->reference_counter == 1)
     {
       xcb_render_free_picture(globalconf.connection,
                               render_window->alpha_picture->picture);
@@ -492,6 +492,9 @@ _render_unref_window_alpha_picture(_render_window_t *render_window)
       if(render_window->alpha_picture->next)
         render_window->alpha_picture->next->previous =
           render_window->alpha_picture->previous;
+
+      if(render_window->alpha_picture == _render_conf.alpha_pictures)
+        _render_conf.alpha_pictures = _render_conf.alpha_pictures->next;
 
       util_free(&render_window->alpha_picture);
     }
