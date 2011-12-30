@@ -599,16 +599,11 @@ window_paint_all(window_t *windows)
   (*globalconf.rendering->paint_background)();
 
   for(window_t *window = windows; window; window = window->next)
-    {
-      if(!window->damaged || !window_is_visible(window))
-	{
-	  debug("Ignoring window %jx", (uintmax_t) window->id);
-	  continue;
-	}
-
-      debug("Painting window %jx", (uintmax_t) window->id);
-      (*globalconf.rendering->paint_window)(window);
-    }
+    if(window->damaged && window_is_visible(window))
+      {
+        debug("Painting window %jx", (uintmax_t) window->id);
+        (*globalconf.rendering->paint_window)(window);
+      }
 
   (*globalconf.rendering->paint_all)();
   xcb_aux_sync(globalconf.connection);
