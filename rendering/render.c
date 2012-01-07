@@ -499,7 +499,10 @@ _render_unref_window_alpha_picture(_render_window_t *render_window)
       util_free(&render_window->alpha_picture);
     }
   else
-    --render_window->alpha_picture->reference_counter;
+    {
+      --render_window->alpha_picture->reference_counter;
+      render_window->alpha_picture = NULL;
+    }
 }
 
 /** Get the alpha Picture associated  with the given rendering backend
