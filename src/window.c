@@ -437,8 +437,7 @@ window_get_invisible_window_pixmap_finalise(window_t *window)
 static xcb_get_window_attributes_cookie_t
 window_add_requests(const xcb_window_t window_id)
 {
-  return xcb_get_window_attributes_unchecked(globalconf.connection,
-					     window_id);
+  return xcb_get_window_attributes_unchecked(globalconf.connection, window_id);
 }
 
 /** Get  the GetWindowAttributes  reply and  also associated  a Damage
@@ -459,7 +458,7 @@ window_add_requests_finalise(window_t * const window,
 
   if(!window->attributes)
     {
-      warn("GetWindowAttributes failed for window %jx", (uintmax_t) window->id);
+      debug("GetWindowAttributes failed for window %jx", (uintmax_t) window->id);
       return NULL;
     }
 
@@ -522,6 +521,7 @@ window_manage_existing(const int nwindows,
       if(!window_add_requests_finalise(new_windows[nwindow],
 					attributes_cookies[nwindow]))
 	{
+          warn("Cannot manage window %jx", (uintmax_t) new_windows_id[nwindow]);
 	  window_list_remove_window(new_windows[nwindow]);
 	  continue;
 	}

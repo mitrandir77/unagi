@@ -476,7 +476,7 @@ event_handle_create_notify(xcb_create_notify_event_t *event)
   window_t *new_window = window_add(event->window);
   if(!new_window)
     {
-      warn("Can't create window %jx", (uintmax_t) event->window);
+      debug("Cannot create window %jx", (uintmax_t) event->window);
       return;
     }
 
