@@ -609,16 +609,25 @@ render_paint_window(window_t *window)
         render_composite_op = XCB_RENDER_PICT_OP_OVER;
     }
 
-  /* Only paint  from the  Window Region, otherwise  it does  not work
-     properly for non-rectangular windows such as xeyes */
-  xcb_xfixes_set_picture_clip_region(globalconf.connection,
-                                     _render_conf.buffer_picture,
-                                     window->region, 0, 0);
+  /* For  non-rectangular  Windows, clip  the  Window  Picture to  its
+     shaped Region to paint  them properly (otherwise for applications
+     such  as  xeyes,  garbage  pixels are  shown  as  RenderComposite
+     expects a rectangular area)
 
-  debug("%x: Clipping to %dx%d +%d+%d", window->id,
-        (uint16_t) (window->geometry->width + window->geometry->border_width * 2),
-        (uint16_t) (window->geometry->height + window->geometry->border_width * 2),
-        window->geometry->x, window->geometry->y);
+     \todo: Should ShapeNotify be handled as well?
+  */
+  if(!window_is_rectangular(window))
+    {
+      xcb_xfixes_region_t shape_region = window_get_region(window, false, false);
+
+      xcb_xfixes_set_picture_clip_region(globalconf.connection,
+                                         render_window->picture,
+                                         shape_region,
+                                         window->geometry->border_width,
+                                         window->geometry->border_width);
+
+      xcb_xfixes_destroy_region(globalconf.connection, shape_region);
+    }
 
   xcb_render_composite(globalconf.connection,
 		       render_composite_op,
@@ -628,17 +637,10 @@ render_paint_window(window_t *window)
 		       0, 0, 0, 0,
 		       window->geometry->x,
 		       window->geometry->y,
-		       (uint16_t) (window->geometry->width + window->geometry->border_width * 2),
-		       (uint16_t) (window->geometry->height + window->geometry->border_width * 2));
-
-  /* In software rendering, there is no need to reset the clipping
-     region but with GPU accelerated rendering, it's completely buggy
-     (or is it an expected behavior?)  with most drivers (tested with
-     Intel, ATI and Nvidia GPUs). For example with Intel driver, only
-     the first window is painted... */
-  xcb_xfixes_set_picture_clip_region(globalconf.connection,
-                                     _render_conf.buffer_picture,
-                                     XCB_NONE, 0, 0);
+		       (uint16_t) (window->geometry->width +
+                                   window->geometry->border_width * 2),
+		       (uint16_t) (window->geometry->height +
+                                   window->geometry->border_width * 2));
 }
 
 /** Routine to  paint everything on  the root Picture, it  just paints

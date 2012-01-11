@@ -38,6 +38,8 @@ typedef struct _window_t
   xcb_get_window_attributes_reply_t *attributes;
   xcb_get_geometry_reply_t *geometry;
   xcb_xfixes_region_t region;
+  xcb_xfixes_fetch_region_cookie_t shape_cookie;
+  bool is_rectangular;
   xcb_damage_damage_t damage;
   bool damaged;
   xcb_pixmap_t pixmap;
@@ -54,7 +56,8 @@ void window_get_root_background_pixmap(void);
 xcb_pixmap_t window_get_root_background_pixmap_finalise(void);
 xcb_pixmap_t window_new_root_background_pixmap(void);
 xcb_pixmap_t window_get_pixmap(const window_t *);
-xcb_xfixes_region_t window_get_region(window_t *);
+bool window_is_rectangular(window_t *);
+xcb_xfixes_region_t window_get_region(window_t *, bool, bool);
 bool window_is_visible(const window_t *);
 void window_get_invisible_window_pixmap(window_t *);
 void window_get_invisible_window_pixmap_finalise(window_t *);

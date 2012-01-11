@@ -289,6 +289,35 @@ window_get_pixmap(const window_t *window)
   return pixmap;
 }
 
+/** Check whether the given window is rectangular to optimize painting
+ *  as most windows are rectangular
+ *
+ * \param window The window object
+ * \return True if the window is rectangular
+ */
+bool
+window_is_rectangular(window_t *window)
+{
+  if(!window->shape_cookie.sequence)
+    return window->is_rectangular;
+
+  xcb_xfixes_fetch_region_reply_t *r =
+    xcb_xfixes_fetch_region_reply(globalconf.connection,
+                                  window->shape_cookie,
+                                  NULL);
+  if(r)
+    {
+      window->is_rectangular = xcb_xfixes_fetch_region_rectangles_length(r) <= 1;
+      free(r);
+    }
+  else
+    window->is_rectangular = true;
+
+  window->shape_cookie.sequence = 0;
+
+  return window->is_rectangular;
+}
+
 /** No need to include Shape extension header just for that */
 #define XCB_SHAPE_SK_BOUNDING 0
 
@@ -300,7 +329,7 @@ window_get_pixmap(const window_t *window)
  * \return The region associated with the given Window
  */
 xcb_xfixes_region_t
-window_get_region(window_t *window)
+window_get_region(window_t *window, bool screen_relative, bool check_shape)
 {
   xcb_xfixes_region_t new_region = xcb_generate_id(globalconf.connection);
 
@@ -309,14 +338,24 @@ window_get_region(window_t *window)
                                        window->id,
                                        XCB_SHAPE_SK_BOUNDING);
 
-  xcb_xfixes_translate_region(globalconf.connection,
-                              new_region,
-                              (int16_t) (window->geometry->x +
-                                         window->geometry->border_width),
-                              (int16_t) (window->geometry->y +
-                                         window->geometry->border_width));
+
+  if(screen_relative)
+    xcb_xfixes_translate_region(globalconf.connection,
+                                new_region,
+                                (int16_t) (window->geometry->x +
+                                           window->geometry->border_width),
+                                (int16_t) (window->geometry->y +
+                                           window->geometry->border_width));
 
   debug("Created new region %x from window %x", new_region, window->id);
+
+  if(check_shape)
+    {
+      window->shape_cookie = xcb_xfixes_fetch_region_unchecked(globalconf.connection,
+                                                               new_region);
+
+      xcb_flush(globalconf.connection);
+    }
 
   return new_region;
 }
@@ -504,7 +543,8 @@ window_manage_existing(const int nwindows,
           /* Get the Window Region as  well, this is also performed in
              CreateNotify   and   ConfigureNotify   handler  for   new
              Windows */
-          new_windows[nwindow]->region = window_get_region(new_windows[nwindow]);
+          new_windows[nwindow]->region = window_get_region(new_windows[nwindow],
+                                                           true, true);
 	}
     }
 

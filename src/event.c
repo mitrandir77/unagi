@@ -440,7 +440,7 @@ event_handle_configure_notify(xcb_configure_notify_event_t *event)
 
   if(window_is_visible(window))
     {
-      window->region = window_get_region(window);
+      window->region = window_get_region(window, true, false);
 
       if(update_pixmap)
         {
@@ -494,7 +494,7 @@ event_handle_create_notify(xcb_create_notify_event_t *event)
        creating regions all the time, this Region will be destroyed
        only upon DestroyNotify or re-created upon ConfigureNotify
     */
-    new_window->region = window_get_region(new_window);
+    new_window->region = window_get_region(new_window, true, true);
 
   PLUGINS_EVENT_HANDLE(event, create, new_window);
 }
@@ -548,7 +548,7 @@ event_handle_map_notify(xcb_map_notify_event_t *event)
 
   if(window_is_visible(window))
     {
-      window->region = window_get_region(window);
+      window->region = window_get_region(window, true, true);
 
       /* Everytime a window is mapped, a new pixmap is created */
       window_free_pixmap(window);
