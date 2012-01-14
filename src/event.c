@@ -258,12 +258,14 @@ event_handle_damage_notify(xcb_damage_notify_event_t *event)
 
   if(!window_is_visible(window))
     {
-      xcb_damage_subtract(globalconf.connection, window->damage, XCB_NONE, XCB_NONE);
       debug("Ignore damaged as Window %x is not visible", window->id);
+      xcb_damage_subtract(globalconf.connection, window->damage, XCB_NONE,
+                          XCB_NONE);
+
       return;
     }
 
-  xcb_xfixes_region_t damaged_region;
+  xcb_xfixes_region_t damaged_region = XCB_NONE;
   bool is_temporary_region = false;
 
   /* If the Window has never been  damaged, then it means it has never
@@ -272,11 +274,16 @@ event_handle_damage_notify(xcb_damage_notify_event_t *event)
     {
       damaged_region = window->region;
       window->damaged = true;
+      window->fully_damaged = true;
 
-      xcb_damage_subtract(globalconf.connection, window->damage, XCB_NONE, XCB_NONE);
+      xcb_damage_subtract(globalconf.connection, window->damage, XCB_NONE,
+                          XCB_NONE);
     }
   /* Otherwise, just paint the damaged Region (which may be the entire
      Window or part of it */
+  else if(window_is_fully_damaged(window, event))
+    xcb_damage_subtract(globalconf.connection, window->damage, XCB_NONE,
+                        XCB_NONE);
   else
     {
       damaged_region = xcb_generate_id(globalconf.connection);
@@ -415,7 +422,10 @@ event_handle_configure_notify(xcb_configure_notify_event_t *event)
             a performance POV?
   */
   if(window_is_visible(window))
-    display_add_damaged_region(&window->region, true);
+    {
+      display_add_damaged_region(&window->region, true);
+      window->fully_damaged = true;
+    }
 
   /* Update geometry */
   window->geometry->x = event->x;

@@ -42,6 +42,8 @@ typedef struct _window_t
   bool is_rectangular;
   xcb_damage_damage_t damage;
   bool damaged;
+  bool fully_damaged;
+  uint64_t damaged_bitmap[2];
   xcb_pixmap_t pixmap;
   void *rendering;
   struct _window_t *next;
@@ -58,6 +60,7 @@ xcb_pixmap_t window_new_root_background_pixmap(void);
 xcb_pixmap_t window_get_pixmap(const window_t *);
 bool window_is_rectangular(window_t *);
 xcb_xfixes_region_t window_get_region(window_t *, bool, bool);
+bool window_is_fully_damaged(window_t *, xcb_damage_notify_event_t *);
 bool window_is_visible(const window_t *);
 void window_get_invisible_window_pixmap(window_t *);
 void window_get_invisible_window_pixmap_finalise(window_t *);
