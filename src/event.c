@@ -226,6 +226,10 @@ event_handle_startup(xcb_generic_event_t *event)
     }
 }
 
+/** Maximum number  of DamageNotify events received  before repainting
+    the full window */
+#define DAMAGE_NOTIFY_MAX 24
+
 /** Handler for DamageNotify events
  *
  * \param event The X DamageNotify event
@@ -248,57 +252,49 @@ event_handle_damage_notify(xcb_damage_notify_event_t *event)
 #endif
 
   window_t *window = window_list_get(event->drawable);
-
-  /* The window may have disappeared in the meantime */
-  if(!window)
-    {
-      debug("Window %jx has disappeared", (uintmax_t) event->drawable);
-      return;
-    }
-
-  if(!window_is_visible(window))
-    {
-      debug("Ignore damaged as Window %x is not visible", window->id);
-      xcb_damage_subtract(globalconf.connection, window->damage, XCB_NONE,
-                          XCB_NONE);
-
-      return;
-    }
-
-  xcb_xfixes_region_t damaged_region = XCB_NONE;
+  xcb_xfixes_region_t damaged_region;
   bool is_temporary_region = false;
 
+  /* The window may have disappeared in the meantime or is not visible
+     so do nothing */
+  if(!window || !window_is_visible(window))
+    return;
   /* If the Window has never been  damaged, then it means it has never
      be painted on the screen yet, thus paint its entire content */
-  if(!window->damaged)
+  else if(!window->damaged)
     {
       damaged_region = window->region;
       window->damaged = true;
       window->fully_damaged = true;
+    }
+  /* Do nothing if the window is already fully damaged */
+  else if(window->fully_damaged)
+    {
+      debug("Window %jx fully damaged (cached)", (uintmax_t) window->id);
+      return;
+    }
+  /* If  the   window  is  considered   fully  damaged  or   too  many
+     DamageNotify  events   have  been   received,  then   repaint  it
+     completely */
+  else if(window->damage_notify_counter++ > DAMAGE_NOTIFY_MAX ||
+          window_is_fully_damaged(window, event))
+    {
+      debug("Window %jx fully damaged: %d", (uintmax_t) window->id,
+            window->fully_damaged);
 
-      xcb_damage_subtract(globalconf.connection, window->damage, XCB_NONE,
-                          XCB_NONE);
+      damaged_region = window->region;
+      window->fully_damaged = true;
     }
   /* Otherwise, just paint the damaged Region (which may be the entire
      Window or part of it */
-  else if(window_is_fully_damaged(window, event))
-    xcb_damage_subtract(globalconf.connection, window->damage, XCB_NONE,
-                        XCB_NONE);
   else
     {
       damaged_region = xcb_generate_id(globalconf.connection);
-      
+
+      event->area.x += event->geometry.x;
+      event->area.y += event->geometry.y;
       xcb_xfixes_create_region(globalconf.connection, damaged_region,
-                               0, NULL);
-
-      xcb_damage_subtract(globalconf.connection, window->damage, XCB_NONE,
-                          damaged_region);
-
-      xcb_xfixes_translate_region(globalconf.connection, damaged_region,
-                                  (int16_t) (window->geometry->x +
-                                             window->geometry->border_width),
-                                  (int16_t) (window->geometry->y +
-                                             window->geometry->border_width));
+                               1, &event->area);
 
       is_temporary_region = true;
     }

@@ -43,6 +43,7 @@ typedef struct _window_t
   xcb_damage_damage_t damage;
   bool damaged;
   bool fully_damaged;
+  short damage_notify_counter;
   uint64_t damaged_bitmap[2];
   xcb_pixmap_t pixmap;
   void *rendering;

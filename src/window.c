@@ -400,16 +400,11 @@ static const short _damaged_stripes_max =
 bool
 window_is_fully_damaged(window_t *window, xcb_damage_notify_event_t *event)
 {
-  if(window->fully_damaged)
-    {
-      debug("Window %jx fully damaged (cached)", (uintmax_t) window->id);
-      return true;
-    }
-  else if(window->geometry->width == event->area.width &&
-          window->geometry->height == event->area.height)
+  if(window->geometry->width == event->area.width &&
+     window->geometry->height == event->area.height)
     {
       window->fully_damaged = true;
-      return false;
+      return true;
     }
 
   /* Horizontal damaged bitmap */
@@ -432,8 +427,7 @@ window_is_fully_damaged(window_t *window, xcb_damage_notify_event_t *event)
      determine if the window is fully damaged */
   uint64_t horizontal_bitmap = window->damaged_bitmap[0];
   uint64_t vertical_bitmap = window->damaged_bitmap[1];
-  for(unsigned short bit_counter = 0;
-      (horizontal_bitmap || vertical_bitmap) && !window->fully_damaged; )
+  for(unsigned short bit_counter = 0; horizontal_bitmap || vertical_bitmap; )
     {
       /* Clear the least significant bit set */
       if(horizontal_bitmap)
@@ -449,11 +443,8 @@ window_is_fully_damaged(window_t *window, xcb_damage_notify_event_t *event)
         }
 
       if(bit_counter >= _damaged_stripes_max)
-        window->fully_damaged = true;
+        return true;
     }
-
-  debug("Window %jx fully damaged: %d", (uintmax_t) window->id,
-        window->fully_damaged);
 
   return false;
 }
@@ -569,7 +560,7 @@ window_add_requests_finalise(window_t * const window,
       window->damage = xcb_generate_id(globalconf.connection);
 
       xcb_damage_create(globalconf.connection, window->damage, window->id,
-			XCB_DAMAGE_REPORT_LEVEL_NON_EMPTY);
+			XCB_DAMAGE_REPORT_LEVEL_RAW_RECTANGLES);
     }
 
   return window->attributes;
@@ -746,6 +737,9 @@ window_paint_all(window_t *windows)
         window->fully_damaged = false;
         window->damaged_bitmap[0] = 0;
         window->damaged_bitmap[1] = 0;
+
+        /* And the DamageNotify events counter */
+        window->damage_notify_counter = 0;
       }
 
   (*globalconf.rendering->paint_all)();
