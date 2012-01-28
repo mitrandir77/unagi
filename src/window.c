@@ -559,8 +559,13 @@ window_add_requests_finalise(window_t * const window,
     {
       window->damage = xcb_generate_id(globalconf.connection);
 
+      /* With DamageReportRawRectangles level, no attempt to compress
+         out overlapping rectangles is made, therefore many events are
+         received and handled needlessly, whereas with DamageReportNonEmpty
+         level only a single event specifying the full window region is sent
+         thus this is not efficient for small damage regions */
       xcb_damage_create(globalconf.connection, window->damage, window->id,
-			XCB_DAMAGE_REPORT_LEVEL_RAW_RECTANGLES);
+			XCB_DAMAGE_REPORT_LEVEL_DELTA_RECTANGLES);
     }
 
   return window->attributes;
@@ -740,6 +745,13 @@ window_paint_all(window_t *windows)
 
         /* And the DamageNotify events counter */
         window->damage_notify_counter = 0;
+
+        /* Reset the damaged region in order to get damages occurring
+           after the repaint, otherwise, with DamageReportDeltaRectangles
+           level, DamageNotify won't be send if the same region was
+           already damaged during the previous repaint */
+        xcb_damage_subtract(globalconf.connection, window->damage,
+                            XCB_NONE, XCB_NONE);
       }
 
   (*globalconf.rendering->paint_all)();
