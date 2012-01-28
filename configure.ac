@@ -22,9 +22,10 @@ AC_PROG_INSTALL
 AC_LIBTOOL_DLOPEN
 AC_PROG_LIBTOOL
 
+# xcb >= 1.8 because of xcb_poll_for_queued_event
 UNAGI_REQUIRES="libxdg-basedir >= 1.0.0 \
  libconfuse \
- xcb >= 1.4 \
+ xcb >= 1.8 \
  xcb-proto >= 1.6 \
  xcb-composite \
  xcb-xfixes \

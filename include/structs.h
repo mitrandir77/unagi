@@ -50,9 +50,14 @@ typedef struct _display_extensions_t
   const xcb_query_extension_reply_t *randr;
 } display_extensions_t;
 
-/* Repaint interval to 20ms (50Hz) if  it could not have been obtained
-   from RandR */
+/** Repaint interval to 20ms (50Hz) if  it could not have been obtained
+    from RandR */
 #define DEFAULT_REPAINT_INTERVAL 0.02
+
+/** Minimum value for the repaint interval, 10ms (200Hz), used on
+    startup if the refresh rate is too high and when determining the
+    repaint interval according to the painting time */
+#define MINIMUM_REPAINT_INTERVAL 0.01
 
 /** Global structure holding variables used all across the program */
 typedef struct _conf_t
@@ -62,6 +67,9 @@ typedef struct _conf_t
   /** libev I/O watcher on XCB FD, invoked in paint callback to ensure
       that no events have been queued while calling the callback */
   ev_io event_io_watcher;
+  /** libev paint timer watcher to be reset according to the painting
+      average time */
+  ev_timer event_paint_timer_watcher;
 
   /** The XCB connection structure */
   xcb_connection_t *connection;
@@ -69,8 +77,14 @@ typedef struct _conf_t
   int screen_nbr;
   /** The screen information */
   xcb_screen_t *screen;
-  /** Interval between painting (ms) (from screen refresh rate) */
+  /** Maximum painting interval in seconds (from screen refresh rate) */
+  float refresh_rate_interval;
+  /** Repaint interval computed from the painting time average */
   float repaint_interval;
+  /** Sum of all painting times (for calculating the global average) */
+  float paint_time_sum;
+  /** Numbre of paintings (for calculating the global average) */
+  unsigned int paint_counter;
   /** EWMH-related information */
   xcb_ewmh_connection_t ewmh;
   /** The X extensions information */

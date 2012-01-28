@@ -51,10 +51,9 @@
 
 #ifdef __DEBUG__
 /*
- * Basic painting performance benchmark using clock_gettime()
+ * Basic painting performance benchmark
  */
 #include <float.h>
-#include <time.h>
 #include <math.h>
 #endif
 
@@ -249,21 +248,19 @@ _unagi_paint_callback(EV_P_ ev_timer *w, int revents)
 {
 #ifdef __DEBUG__
   /* Meaningful to measure painting performances */
-  static double paint_time_sum = 0;
   static double paint_time_min = DBL_MAX;
   static double paint_time_max = 0;
 
   /* For online computation of standard deviation */
   static double paint_time_mean = 0;
   static double paint_time_variance_sum = 0;
-  static unsigned int paint_counter = 0;
 #endif
 
   /* Now paint the windows */
   if(globalconf.damaged)
     {
 #ifdef __DEBUG__
-      debug("COUNT: %u: Begin re-painting", paint_counter);
+      debug("COUNT: %u: Begin re-painting", globalconf.paint_counter);
 #endif
       window_t *windows = NULL;
       for(plugin_t *plugin = globalconf.plugins; plugin; plugin = plugin->next)
@@ -273,6 +270,7 @@ _unagi_paint_callback(EV_P_ ev_timer *w, int revents)
 
       if(!windows)
         windows = globalconf.windows;
+
 #ifdef __DEBUG__
       /* Display damaged regions */
       xcb_xfixes_fetch_region_reply_t *r = \
@@ -292,39 +290,50 @@ _unagi_paint_callback(EV_P_ ev_timer *w, int revents)
 
           free(r);
         }
-
-      struct timespec start, end;
-      clock_gettime(CLOCK_MONOTONIC_RAW, &start);
-#endif /* __DEBUG__ */
+#endif
       window_paint_all(windows);
+      display_reset_damaged();
+
+      const float paint_time = (float) (ev_time() - ev_now(globalconf.event_loop));
+      globalconf.paint_time_sum += paint_time;
+
+      const float current_average = globalconf.paint_time_sum /
+        (float) ++globalconf.paint_counter;
+
+      /* The next repaint  interval is computed from  the refresh rate
+         interval and repaint global average time */
+      const float current_interval = globalconf.refresh_rate_interval -
+        current_average;
+
+      /* When repainting the whole screen, the painting may have taken
+         a  long time  but the  next repaint  should not  be too  soon
+         neither */
+      if(current_interval < MINIMUM_REPAINT_INTERVAL)
+        globalconf.repaint_interval = globalconf.refresh_rate_interval;
+      else
+        globalconf.repaint_interval = current_interval;
+
+      /* Rearm the paint timer watcher */
+      globalconf.event_paint_timer_watcher.repeat = globalconf.repaint_interval;
+      ev_timer_again(globalconf.event_loop, &globalconf.event_paint_timer_watcher);
+
 #ifdef __DEBUG__
-      clock_gettime(CLOCK_MONOTONIC_RAW, &end);
-
-      ++paint_counter;
-
-      double paint_time = (double) (end.tv_nsec - start.tv_nsec) / 1000000 +
-        (double) (end.tv_sec - start.tv_sec) * 1000;
-
       if(paint_time < paint_time_min)
         paint_time_min = paint_time;
       if(paint_time > paint_time_max)
         paint_time_max = paint_time;
 
-      paint_time_sum += paint_time;
-
       /* Compute standard deviation for this iteration */
       const double delta = paint_time - paint_time_mean;
-      paint_time_mean += (double) delta / paint_counter;
+      paint_time_mean += (double) delta / globalconf.paint_counter;
       paint_time_variance_sum += delta * (paint_time - paint_time_mean);
 
-      debug("Painting time in ms (#%u): %.2f, min=%.2f, max=%.2f, "
-            "average=%.2f (+/- %.1Lf)",
-            paint_counter, paint_time, paint_time_min, paint_time_max,
-            paint_time_sum / paint_counter,
-            sqrtl(paint_time_variance_sum / paint_counter));
+      debug("Painting time in seconds (#%u): %.6f, min=%.6f, max=%.6f, "
+            "average=%.6f (+/- %.6Lf)",
+            globalconf.paint_counter, paint_time, paint_time_min,
+            paint_time_max, current_average,
+            sqrtl(paint_time_variance_sum / globalconf.paint_counter));
 #endif /* __DEBUG__ */
-      display_reset_damaged();
-      debug("Finish re-painting");
 
       /* Some events may have been queued while calling this callback,
          so make sure by calling this watcher again */
@@ -335,13 +344,42 @@ _unagi_paint_callback(EV_P_ ev_timer *w, int revents)
 static void
 _unagi_io_callback(EV_P_ ev_io *w, int revents)
 {
+  /* ev_now_update()  is   only  called  through  ev_run()   but  with
+     ev_invoke  (as used  on startup  and to  process events  received
+     during painting function call */
+  if(revents <= 0)
+    ev_now_update(globalconf.event_loop);
+
+  ev_tstamp now = ev_now(globalconf.event_loop);
+
   /* Check X connection to avoid SIGSEGV */
   if(xcb_connection_has_error(globalconf.connection))
     fatal("X connection invalid");
 
   /* Process all events in the queue because before painting, all the
      DamageNotify have to be received */
-  event_handle_poll_loop(event_handle);
+  xcb_generic_event_t *event;
+  while((event = xcb_poll_for_event(globalconf.connection)) != NULL)
+    {
+      event_handle(event);
+      free(event);
+
+      /* Stop processing events (but not  on startup as all the events
+         must be processed) if the  repaint interval has been reached,
+         otherwise DamageNotify  keep being processed forever  if many
+         are received */
+      if(revents != -1 && (ev_time() - now + 0.001) > globalconf.repaint_interval)
+        {
+          /* Process events remaining in the queue without polling the
+             X connection */
+          while((event = xcb_poll_for_queued_event(globalconf.connection)))
+            {
+              event_handle(event);
+              free(event);
+            }
+          break;
+        }
+    }
 }
 
 int
@@ -517,26 +555,30 @@ main(int argc, char **argv)
       float rate = 1 / (float) randr_screen_reply->rate;
       free(randr_screen_reply);
 
-      if(rate < 0.002)
+      if(rate < MINIMUM_REPAINT_INTERVAL)
         {
-          warn("Got refresh rate > 500Hz, set it to 500Hz");
-          rate = (float) 0.001;
+          warn("Got refresh rate > 200Hz, set it to 200Hz");
+          rate = (float) MINIMUM_REPAINT_INTERVAL;
         }
 
-      globalconf.repaint_interval = rate;
+      globalconf.refresh_rate_interval = rate;
     }
   else
     {
       warn("Could not get screen refresh rate, set it to 50Hz");
-      globalconf.repaint_interval = (float) DEFAULT_REPAINT_INTERVAL;
+      globalconf.refresh_rate_interval = (float) DEFAULT_REPAINT_INTERVAL;
     }
 
-  /* Initialise painting timer depending on the screen refresh rate */
-  ev_timer timer;
-  ev_timer_init(&timer, _unagi_paint_callback, globalconf.repaint_interval,
-                globalconf.repaint_interval);
+  globalconf.repaint_interval = globalconf.refresh_rate_interval;
 
-  ev_timer_start(globalconf.event_loop, &timer);
+  /* Initialise painting timer depending on the screen refresh rate */
+  ev_init(&globalconf.event_paint_timer_watcher,
+          _unagi_paint_callback);
+
+  /* Set the initial repaint interval to the screen refresh rate, it
+     will be adjust later on according to the repaint times */
+  globalconf.event_paint_timer_watcher.repeat = globalconf.repaint_interval;
+  ev_timer_again(globalconf.event_loop, &globalconf.event_paint_timer_watcher);
   ev_unref(globalconf.event_loop);
 
   /* Get the lock masks reply of the request previously sent */ 
@@ -547,7 +589,7 @@ main(int argc, char **argv)
   xcb_flush(globalconf.connection);
 
   window_paint_all(globalconf.windows);
-  ev_invoke(globalconf.event_loop, &globalconf.event_io_watcher, 0);
+  ev_invoke(globalconf.event_loop, &globalconf.event_io_watcher, -1);
 
   /* Main event and error loop */
   ev_run(globalconf.event_loop, 0);
@@ -556,7 +598,7 @@ main(int argc, char **argv)
   ev_prepare_stop(globalconf.event_loop, &x_prepare);
   ev_io_stop(globalconf.event_loop, &globalconf.event_io_watcher);
   ev_ref(globalconf.event_loop);
-  ev_timer_stop(globalconf.event_loop, &timer);
+  ev_timer_stop(globalconf.event_loop, &globalconf.event_paint_timer_watcher);
 
   return EXIT_SUCCESS;
 }
