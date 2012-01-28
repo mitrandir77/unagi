@@ -575,6 +575,9 @@ main(int argc, char **argv)
   ev_init(&globalconf.event_paint_timer_watcher,
           _unagi_paint_callback);
 
+  /* Painting must have precedence over events processing */
+  ev_set_priority(&globalconf.event_paint_timer_watcher, EV_MAXPRI);
+
   /* Set the initial repaint interval to the screen refresh rate, it
      will be adjust later on according to the repaint times */
   globalconf.event_paint_timer_watcher.repeat = globalconf.repaint_interval;
