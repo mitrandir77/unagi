@@ -733,7 +733,7 @@ window_paint_all(window_t *windows)
   (*globalconf.rendering->paint_background)();
 
   for(window_t *window = windows; window; window = window->next)
-    if(window->damaged && window_is_visible(window))
+    if(window->damaged)
       {
         debug("Painting window %jx", (uintmax_t) window->id);
         (*globalconf.rendering->paint_window)(window);
