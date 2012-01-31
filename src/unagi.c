@@ -238,12 +238,6 @@ _unagi_exit_on_signal(struct ev_loop *loop, ev_signal *w, int revents)
 }
 
 static void
-_unagi_prepare_callback(EV_P_ ev_prepare *w, int revents)
-{
-  xcb_flush(globalconf.connection);
-}
-
-static void
 _unagi_paint_callback(EV_P_ ev_timer *w, int revents)
 {
 #ifdef __DEBUG__
@@ -456,10 +450,7 @@ main(int argc, char **argv)
   ev_io_start(globalconf.event_loop, &globalconf.event_io_watcher);
 
   /* Flush the X events queue before blocking */
-  ev_prepare x_prepare;
-  ev_prepare_init(&x_prepare, _unagi_prepare_callback);
-  ev_prepare_start(globalconf.event_loop, &x_prepare);
-  ev_unref(globalconf.event_loop);
+  xcb_flush(globalconf.connection);
 
   /**
    * Second round-trip
@@ -597,8 +588,6 @@ main(int argc, char **argv)
   /* Main event and error loop */
   ev_run(globalconf.event_loop, 0);
 
-  ev_ref(globalconf.event_loop);
-  ev_prepare_stop(globalconf.event_loop, &x_prepare);
   ev_io_stop(globalconf.event_loop, &globalconf.event_io_watcher);
   ev_ref(globalconf.event_loop);
   ev_timer_stop(globalconf.event_loop, &globalconf.event_paint_timer_watcher);
