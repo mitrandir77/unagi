@@ -32,6 +32,8 @@
 #include <xcb/damage.h>
 #include <xcb/xfixes.h>
 
+#define WINDOW_FULLY_DAMAGED_RATIO 0.9
+
 typedef struct _window_t
 {
   xcb_window_t id;
@@ -42,9 +44,8 @@ typedef struct _window_t
   bool is_rectangular;
   xcb_damage_damage_t damage;
   bool damaged;
-  bool fully_damaged;
+  float damaged_ratio;
   short damage_notify_counter;
-  uint64_t damaged_bitmap[2];
   xcb_pixmap_t pixmap;
   void *rendering;
   struct _window_t *next;
@@ -61,7 +62,6 @@ xcb_pixmap_t window_new_root_background_pixmap(void);
 xcb_pixmap_t window_get_pixmap(const window_t *);
 bool window_is_rectangular(window_t *);
 xcb_xfixes_region_t window_get_region(window_t *, bool, bool);
-bool window_is_fully_damaged(window_t *, xcb_damage_notify_event_t *);
 bool window_is_visible(const window_t *);
 void window_get_invisible_window_pixmap(window_t *);
 void window_get_invisible_window_pixmap_finalise(window_t *);
@@ -69,6 +69,15 @@ void window_manage_existing(const int nwindows, const xcb_window_t *);
 window_t *window_add(const xcb_window_t);
 void window_restack(window_t *, xcb_window_t);
 void window_paint_all(window_t *);
+
+static inline float
+window_get_damaged_ratio(window_t *window, xcb_damage_notify_event_t *event)
+{
+  window->damaged_ratio += (float) (event->area.width * event->area.height) /
+    (window->geometry->width * window->geometry->height);
+
+  return window->damaged_ratio;
+}
 
 #define DO_GEOMETRY_WITH_BORDER(kind)					\
   static inline uint16_t						\

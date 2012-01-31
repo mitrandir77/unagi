@@ -265,10 +265,10 @@ event_handle_damage_notify(xcb_damage_notify_event_t *event)
     {
       damaged_region = window->region;
       window->damaged = true;
-      window->fully_damaged = true;
+      window->damaged_ratio = 1.0;
     }
   /* Do nothing if the window is already fully damaged */
-  else if(window->fully_damaged)
+  else if(window->damaged_ratio >= WINDOW_FULLY_DAMAGED_RATIO)
     {
       debug("Window %jx fully damaged (cached)", (uintmax_t) window->id);
       return;
@@ -277,13 +277,18 @@ event_handle_damage_notify(xcb_damage_notify_event_t *event)
      DamageNotify  events   have  been   received,  then   repaint  it
      completely */
   else if(window->damage_notify_counter++ > DAMAGE_NOTIFY_MAX ||
-          window_is_fully_damaged(window, event))
+          window_get_damaged_ratio(window, event) >= WINDOW_FULLY_DAMAGED_RATIO)
     {
-      debug("Window %jx fully damaged: %d", (uintmax_t) window->id,
-            window->fully_damaged);
+      debug("Window %jx damaged ratio: %.2f, counter: %d",
+           (uintmax_t) window->id,
+           window->damaged_ratio,
+           window->damage_notify_counter);
 
+      /* @todo:  Perhaps  xcb_damage_add()  could  be  used  to  avoid
+         further events to  be sent as the window  is considered fully
+         damaged? */
       damaged_region = window->region;
-      window->fully_damaged = true;
+      window->damaged_ratio = 1.0;
     }
   /* Otherwise, just paint the damaged Region (which may be the entire
      Window or part of it */
@@ -420,7 +425,7 @@ event_handle_configure_notify(xcb_configure_notify_event_t *event)
   if(window_is_visible(window))
     {
       display_add_damaged_region(&window->region, true);
-      window->fully_damaged = true;
+      window->damaged_ratio = 1.0;
     }
 
   /* Update geometry */

@@ -361,94 +361,6 @@ window_get_region(window_t *window, bool screen_relative, bool check_shape)
   return new_region;
 }
 
-/** Number of stripes */
-#define DAMAGED_STRIPE_N ((short) (sizeof(uint64_t) << 3))
-static const short _damaged_stripe_n = DAMAGED_STRIPE_N;
-
-/** Get the stripes bitmap from the damaged event size and position by
- *  setting the appropriate bits (one bit per stripe).
- *
- * \param stripes_n Number of stripes of the window
- * \param size Damaged area size
- * \param position Damaged area position (relative to the window)
- * \return 
- */
-static inline uint64_t
-_window_get_damaged_bitmap(float stripes_n, uint16_t size, int16_t position)
-{
-  return (UINT64_MAX >> (_damaged_stripe_n - (short) roundf(size / stripes_n))) <<
-    (short) roundf(position / stripes_n);
-}
-
-/** Maximum  number of  stripes  before considering  the window  fully
-    damaged */
-static const short _damaged_stripes_max =
-  (DAMAGED_STRIPE_N - (short) (DAMAGED_STRIPE_N * 0.15)) << 1;
-
-/** Check whether a Window should  be considered as fully damaged. The
- *  window  area  is  divided  into  DAMAGED_STRIPE_N  horizontal  and
- *  vertical stripes (each  represented internally as a  single bit of
- *  an   uint64_t),  then   according  to   the  damaged   event,  the
- *  corresponding stripe(s) are  set to 1. When the  number of stripes
- *  (e.g.  calculated by counting the number of bits set to 1) reaches
- *  _damaged_stripes_max, it is considered as fully damaged.
- *
- * \param window The window object
- * \param event DamageNotify event
- * \return true if the Window is fully damaged
- */
-bool
-window_is_fully_damaged(window_t *window, xcb_damage_notify_event_t *event)
-{
-  if(window->geometry->width == event->area.width &&
-     window->geometry->height == event->area.height)
-    {
-      window->fully_damaged = true;
-      return true;
-    }
-
-  /* Horizontal damaged bitmap */
-  window->damaged_bitmap[0] |=
-    _window_get_damaged_bitmap((float) window->geometry->width / _damaged_stripe_n,
-                               event->area.width,
-                               event->area.x);
-
-  /* Vertical damaged bitmap */
-  window->damaged_bitmap[1] |=
-    _window_get_damaged_bitmap((float) window->geometry->height / _damaged_stripe_n,
-                               event->area.height,
-                               event->area.y);
-
-  debug("fully_damaged: %jxx%jx", (uintmax_t) window->damaged_bitmap[0],
-        (uintmax_t) window->damaged_bitmap[1]);
-
-  /* Count  the number  of bits  for width  and height  bitmaps (Brian
-     Kernighan's  way  as  in  C Programming  Language  2nd  Ed.)   to
-     determine if the window is fully damaged */
-  uint64_t horizontal_bitmap = window->damaged_bitmap[0];
-  uint64_t vertical_bitmap = window->damaged_bitmap[1];
-  for(unsigned short bit_counter = 0; horizontal_bitmap || vertical_bitmap; )
-    {
-      /* Clear the least significant bit set */
-      if(horizontal_bitmap)
-        {
-          horizontal_bitmap &= horizontal_bitmap - 1;
-          bit_counter++;
-        }
-
-      if(vertical_bitmap)
-        {
-          vertical_bitmap &= vertical_bitmap - 1;
-          bit_counter++;
-        }
-
-      if(bit_counter >= _damaged_stripes_max)
-        return true;
-    }
-
-  return false;
-}
-
 /** Check whether the window is visible within the screen geometry
  *
  * \param window The window object
@@ -738,10 +650,8 @@ window_paint_all(window_t *windows)
         debug("Painting window %jx", (uintmax_t) window->id);
         (*globalconf.rendering->paint_window)(window);
 
-        /* Reset fully damaged state for the next repaint */
-        window->fully_damaged = false;
-        window->damaged_bitmap[0] = 0;
-        window->damaged_bitmap[1] = 0;
+        /* Reset damaged ratio for the next repaint */
+        window->damaged_ratio = 0.0;
 
         /* And the DamageNotify events counter */
         window->damage_notify_counter = 0;
