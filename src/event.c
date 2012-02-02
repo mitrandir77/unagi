@@ -619,7 +619,10 @@ event_handle_unmap_notify(xcb_unmap_notify_event_t *event)
     }
 
   if(window_is_visible(window))
-    display_add_damaged_region(&window->region, true);
+    {
+      display_add_damaged_region(&window->region, true);
+      window->damaged_ratio = 1.0;
+    }
 
   /* Update window state */
   window->attributes->map_state = XCB_MAP_STATE_UNMAPPED;

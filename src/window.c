@@ -645,24 +645,31 @@ window_paint_all(window_t *windows)
   (*globalconf.rendering->paint_background)();
 
   for(window_t *window = windows; window; window = window->next)
-    if(window->damaged)
-      {
-        debug("Painting window %jx", (uintmax_t) window->id);
-        (*globalconf.rendering->paint_window)(window);
+    {
+      if(window->damaged)
+        {
+          debug("Painting window %jx", (uintmax_t) window->id);
+          (*globalconf.rendering->paint_window)(window);
+        }
+      /* When the  window has been damaged  or was damaged but  is not
+         visible anymore */
+      if(window->damaged_ratio)
+        {
+          /* Reset damaged ratio for the next repaint */
+          window->damaged_ratio = 0.0;
 
-        /* Reset damaged ratio for the next repaint */
-        window->damaged_ratio = 0.0;
+          /* And the DamageNotify events counter */
+          window->damage_notify_counter = 0;
 
-        /* And the DamageNotify events counter */
-        window->damage_notify_counter = 0;
-
-        /* Reset the damaged region in order to get damages occurring
-           after the repaint, otherwise, with DamageReportDeltaRectangles
-           level, DamageNotify won't be send if the same region was
-           already damaged during the previous repaint */
-        xcb_damage_subtract(globalconf.connection, window->damage,
-                            XCB_NONE, XCB_NONE);
-      }
+          /* Reset  the  damaged  region   in  order  to  get  damages
+             occurring    after   the    repaint,   otherwise,    with
+             DamageReportDeltaRectangles level,  DamageNotify won't be
+             send if  the same region  was already damaged  during the
+             previous repaint */
+          xcb_damage_subtract(globalconf.connection, window->damage,
+                              XCB_NONE, XCB_NONE);
+        }
+    }
 
   (*globalconf.rendering->paint_all)();
   xcb_aux_sync(globalconf.connection);
