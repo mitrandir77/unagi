@@ -400,3 +400,37 @@ display_reset_damaged(void)
   xcb_xfixes_destroy_region(globalconf.connection, globalconf.damaged);
   globalconf.damaged = XCB_NONE;
 }
+
+/** Set the screen refresh rate, necessary to calculate the interval
+ *  between painting
+ */
+void
+display_set_screen_refresh_rate(xcb_randr_get_screen_info_cookie_t cookie)
+{
+  assert(cookie.sequence);
+
+  xcb_randr_get_screen_info_reply_t *reply =
+    xcb_randr_get_screen_info_reply(globalconf.connection, cookie, NULL);
+
+  if(!reply)
+    {
+      warn("Could not get screen refresh rate, set it to 50Hz");
+      globalconf.refresh_rate_interval = (float) DEFAULT_REPAINT_INTERVAL;
+      return;
+    }
+
+  if(reply->rate)
+    {
+      float rate = 1 / (float) reply->rate;
+
+      if(rate < MINIMUM_REPAINT_INTERVAL)
+        {
+          warn("Got refresh rate > 200Hz, set it to 200Hz");
+          rate = (float) MINIMUM_REPAINT_INTERVAL;
+        }
+
+      globalconf.refresh_rate_interval = rate;
+    }
+
+  free(reply);
+}

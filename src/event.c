@@ -309,6 +309,25 @@ event_handle_damage_notify(xcb_damage_notify_event_t *event)
   PLUGINS_EVENT_HANDLE(event, damage, window);
 }
 
+/** Handler for RRScreenChangeNotify events reported when the screen
+ *  configuration change and is meaningful to get the new refresh rate
+ *
+ * \param event The X RRScreenChangeNotify event
+ */
+static void
+event_handle_randr_screen_change_notify(xcb_randr_screen_change_notify_event_t *event)
+{
+  debug("RandrScreenChangeNotify: root=%jx", (uintmax_t) event->root);
+
+  xcb_randr_get_screen_info_cookie_t cookie =
+    xcb_randr_get_screen_info(globalconf.connection,
+                              globalconf.screen->root);
+
+  display_set_screen_refresh_rate(cookie);
+
+  PLUGINS_EVENT_HANDLE(event, randr_screen_change_notify, NULL);
+}
+
 /** Handler for KeyPress events reported once a key is pressed
  *
  * \param event The X KeyPress event
@@ -711,9 +730,17 @@ event_handle(xcb_generic_event_t *event)
       event_handle_error((void *) event);
       return;
     }
-  else if(response_type == globalconf.extensions.damage->first_event + XCB_DAMAGE_NOTIFY)
+  else if(response_type == (globalconf.extensions.damage->first_event +
+                            XCB_DAMAGE_NOTIFY))
     {
       event_handle_damage_notify((void *) event);
+      return;
+    }
+  else if(globalconf.extensions.randr &&
+          response_type == (globalconf.extensions.randr->first_event +
+                            XCB_RANDR_SCREEN_CHANGE_NOTIFY))
+    {
+      event_handle_randr_screen_change_notify((void *) event);
       return;
     }
 
@@ -732,6 +759,7 @@ event_handle(xcb_generic_event_t *event)
       EVENT(XCB_UNMAP_NOTIFY, event_handle_unmap_notify);
       EVENT(XCB_PROPERTY_NOTIFY, event_handle_property_notify);
       EVENT(XCB_MAPPING_NOTIFY, event_handle_mapping_notify);
+#undef EVENT
     }
 }
 

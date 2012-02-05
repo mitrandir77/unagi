@@ -1054,6 +1054,7 @@ plugin_vtable_t plugin_vtable = {
   .events = {
     NULL,
     NULL,
+    NULL,
     expose_event_handle_key_release,
     expose_event_handle_button_release,
     NULL,

@@ -491,10 +491,16 @@ main(int argc, char **argv)
 
   xcb_randr_get_screen_info_cookie_t randr_screen_cookie = { .sequence = 0 };
   if(globalconf.extensions.randr)
-    /* Get the screen  refresh rate to calculate  the interval between
-       painting */
-    randr_screen_cookie = xcb_randr_get_screen_info(globalconf.connection,
-                                                    globalconf.screen->root);
+    {
+      /* Get the screen refresh rate to calculate the interval between
+         painting */
+      randr_screen_cookie = xcb_randr_get_screen_info(globalconf.connection,
+                                                      globalconf.screen->root);
+
+      xcb_randr_select_input(globalconf.connection,
+                             globalconf.screen->root,
+                             XCB_RANDR_NOTIFY_MASK_SCREEN_CHANGE);
+    }
 
   /* Validate  errors   and  get  PropertyNotify   needed  to  acquire
      _NET_WM_CM_Sn ownership */
@@ -534,31 +540,14 @@ main(int argc, char **argv)
      don't meet the requirements */
   plugin_check_requirements();
 
-  /* TODO: Handle RandR events  and also get the  maximum refresh rate
-           of all screens rather than the default one */
-  xcb_randr_get_screen_info_reply_t *randr_screen_reply = NULL;
-  if(randr_screen_cookie.sequence &&
-     (randr_screen_reply = xcb_randr_get_screen_info_reply(globalconf.connection,
-                                                           randr_screen_cookie,
-                                                           NULL)) &&
-     randr_screen_reply->rate)
+  /* Set the refresh rate, necessary to define painting intervals */
+  if(!randr_screen_cookie.sequence)
     {
-      float rate = 1 / (float) randr_screen_reply->rate;
-      free(randr_screen_reply);
-
-      if(rate < MINIMUM_REPAINT_INTERVAL)
-        {
-          warn("Got refresh rate > 200Hz, set it to 200Hz");
-          rate = (float) MINIMUM_REPAINT_INTERVAL;
-        }
-
-      globalconf.refresh_rate_interval = rate;
-    }
-  else
-    {
-      warn("Could not get screen refresh rate, set it to 50Hz");
+      warn("RandR not available, falling back on 50Hz");
       globalconf.refresh_rate_interval = (float) DEFAULT_REPAINT_INTERVAL;
     }
+  else
+    display_set_screen_refresh_rate(randr_screen_cookie);
 
   globalconf.repaint_interval = globalconf.refresh_rate_interval;
 

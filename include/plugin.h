@@ -46,6 +46,7 @@
 
 #include <xcb/xcb.h>
 #include <xcb/damage.h>
+#include <xcb/randr.h>
 
 #include "window.h"
 
@@ -54,6 +55,8 @@ typedef struct
 {
   /** DamageNotify event */
   void (*damage) (xcb_damage_notify_event_t *, window_t *);
+  /** RandrScreenChangeNotify event */
+  void (*randr_screen_change_notify) (xcb_randr_screen_change_notify_event_t *, window_t *);
   /** KeyPress event */
   void (*key_press) (xcb_key_press_event_t *, window_t *);
   /** KeyRelease event */
