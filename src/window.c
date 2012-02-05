@@ -438,7 +438,7 @@ window_get_invisible_window_pixmap_finalise(window_t *window)
 static xcb_get_window_attributes_cookie_t
 window_add_requests(const xcb_window_t window_id)
 {
-  return xcb_get_window_attributes_unchecked(globalconf.connection, window_id);
+  return xcb_get_window_attributes(globalconf.connection, window_id);
 }
 
 /** Get  the GetWindowAttributes  reply and  also associated  a Damage
