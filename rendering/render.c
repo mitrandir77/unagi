@@ -212,11 +212,6 @@ _render_root_background_fill(void)
 static inline void
 _render_paint_root_buffer_to_root(void)
 {
-  if(globalconf.damaged_visible)
-    xcb_xfixes_set_picture_clip_region(globalconf.connection,
-                                       _render_conf.buffer_picture,
-                                       globalconf.damaged, 0, 0);
-
   xcb_xfixes_set_picture_clip_region(globalconf.connection,
                                      _render_conf.picture,
                                      globalconf.damaged, 0, 0);
@@ -646,39 +641,6 @@ render_paint_window(window_t *window)
                                    window->geometry->border_width * 2),
 		       (uint16_t) (window->geometry->height +
                                    window->geometry->border_width * 2));
-
-  /* If this  is an opaque Window,  then subtract its region  to avoid
-     painting needlessly Window Regions below
-
-     @todo: this is  a naive implementation because  the background is
-            still painted needlessly and this function should not even
-            be called if  the window is completely  occluded (but that
-            would require managing regions on the client-side)...
-  */
-  if(alpha_picture == XCB_NONE)
-    {
-      if(globalconf.damaged_visible == XCB_NONE)
-        {
-          globalconf.damaged_visible = xcb_generate_id(globalconf.connection);
-
-          xcb_xfixes_create_region(globalconf.connection,
-                                   globalconf.damaged_visible,
-                                   0, NULL);
-
-          xcb_xfixes_copy_region(globalconf.connection,
-                                 globalconf.damaged,
-                                 globalconf.damaged_visible);
-        }
-
-      xcb_xfixes_subtract_region(globalconf.connection,
-                                 globalconf.damaged_visible,
-                                 window->region,
-                                 globalconf.damaged_visible);
-
-      xcb_xfixes_set_picture_clip_region(globalconf.connection,
-                                         _render_conf.buffer_picture,
-                                         globalconf.damaged_visible, 0, 0);
-    }
 }
 
 /** Routine to  paint everything on  the root Picture, it  just paints

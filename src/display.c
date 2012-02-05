@@ -390,25 +390,15 @@ display_add_damaged_region(xcb_xfixes_region_t *region,
     *region = XCB_NONE;
 }
 
-/** Destroy the  global damaged  and visible  damaged Regions  and set
- *  them to  None, meaningful at  each re-painting iteration  to check
- *  whether  a repaint  is  necessary. The  global  damaged Region  is
- *  filled in  event handlers, whereas  the visible damaged  Region is
- *  managed at rendering backend level
+/** Destroy the global  damaged Region and set it  to None, meaningful
+ *  at  each  re-painting iteration  to  check  whether  a repaint  is
+ *  necessary. This region is filled in event handlers
  */
 void
 display_reset_damaged(void)
 {
   xcb_xfixes_destroy_region(globalconf.connection, globalconf.damaged);
   globalconf.damaged = XCB_NONE;
-
-  if(globalconf.damaged_visible)
-    {
-      xcb_xfixes_destroy_region(globalconf.connection,
-                                globalconf.damaged_visible);
-
-      globalconf.damaged_visible = XCB_NONE;
-    }
 }
 
 /** Set the screen refresh rate, necessary to calculate the interval

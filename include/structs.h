@@ -95,9 +95,6 @@ typedef struct _conf_t
   window_t *windows;
   /** Damaged region which must be repainted */
   xcb_xfixes_region_t damaged;
-  /** Damaged region for the buffer Picture to avoid painting window
-      Regions occluded by an upper opaque window Region */
-  xcb_xfixes_region_t damaged_visible;
   /** Confuse configuration file options */
   cfg_t *cfg;
   /** List of KeySyms, only updated when receiving a KeyboardMapping event */
