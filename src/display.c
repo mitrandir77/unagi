@@ -422,14 +422,7 @@ display_set_screen_refresh_rate(xcb_randr_get_screen_info_cookie_t cookie)
   xcb_randr_get_screen_info_reply_t *reply =
     xcb_randr_get_screen_info_reply(globalconf.connection, cookie, NULL);
 
-  if(!reply)
-    {
-      warn("Could not get screen refresh rate, set it to 50Hz");
-      globalconf.refresh_rate_interval = (float) DEFAULT_REPAINT_INTERVAL;
-      return;
-    }
-
-  if(reply->rate)
+  if(reply && reply->rate)
     {
       float rate = 1 / (float) reply->rate;
 
@@ -440,6 +433,11 @@ display_set_screen_refresh_rate(xcb_randr_get_screen_info_cookie_t cookie)
         }
 
       globalconf.refresh_rate_interval = rate;
+    }
+  else
+    {
+      warn("Could not get screen refresh rate, set it to 50Hz");
+      globalconf.refresh_rate_interval = (float) DEFAULT_REPAINT_INTERVAL;
     }
 
   free(reply);
