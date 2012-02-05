@@ -562,8 +562,7 @@ main(int argc, char **argv)
      will be adjust later on according to the repaint times */
   globalconf.event_paint_timer_watcher.repeat = globalconf.repaint_interval;
   ev_timer_again(globalconf.event_loop, &globalconf.event_paint_timer_watcher);
-  ev_unref(globalconf.event_loop);
-
+ 
   /* Get the lock masks reply of the request previously sent */ 
   key_lock_mask_get_reply(key_mapping_cookie);
 
@@ -578,7 +577,6 @@ main(int argc, char **argv)
   ev_run(globalconf.event_loop, 0);
 
   ev_io_stop(globalconf.event_loop, &globalconf.event_io_watcher);
-  ev_ref(globalconf.event_loop);
   ev_timer_stop(globalconf.event_loop, &globalconf.event_paint_timer_watcher);
 
   return EXIT_SUCCESS;
