@@ -86,7 +86,7 @@ static inline float
 window_get_damaged_ratio(window_t *window, xcb_damage_notify_event_t *event)
 {
   window->damaged_ratio += (float) (event->area.width * event->area.height) /
-    (window->geometry->width * window->geometry->height);
+    (float) (window->geometry->width * window->geometry->height);
 
   return window->damaged_ratio;
 }
