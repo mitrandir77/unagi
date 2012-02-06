@@ -36,7 +36,6 @@
 #include "window.h"
 #include "structs.h"
 #include "atoms.h"
-#include "util.h"
 
 /** Append a window to the end  of the windows list which is organized
  *  from the bottommost to the topmost window
@@ -65,34 +64,24 @@ window_list_append(const xcb_window_t new_window_id)
       window_tail->next = new_window;
     }
 
+  globalconf.windows_itree = util_itree_insert(globalconf.windows_itree,
+                                               new_window_id, new_window);
+
   return new_window;
-}
-
-/** Get the window object associated with the given Window XID
- *
- * \param window_id The Window XID to look for
- * \return The window object or NULL
- */
-window_t *
-window_list_get(const xcb_window_t window_id)
-{
-  window_t *window;
-
-  for(window = globalconf.windows;
-      window != NULL && window->id != window_id;
-      window = window->next)
-    ;
-
-  return window;
 }
 
 /** Free a given window and its associated resources
  *
  * \param window The window object to be freed
+ * \param do_itree_remove Should the window be removed from the itree as well
  */
 static void
-window_list_free_window(window_t *window)
+window_list_free_window(window_t *window, bool do_itree_remove)
 {
+  if(do_itree_remove)
+    globalconf.windows_itree = util_itree_remove(globalconf.windows_itree,
+                                                 window->id);
+
   /* Destroy the damage object if any */
   if(window->damage != XCB_NONE)
     {
@@ -130,14 +119,14 @@ window_list_remove_window(window_t *window_delete)
       window_t *old_window = globalconf.windows;
       globalconf.windows = globalconf.windows->next;
 
-      window_list_free_window(old_window);
+      window_list_free_window(old_window, true);
     }
   else
     for(window_t *window = globalconf.windows; window->next; window = window->next)
       if(window->next == window_delete)
 	{
 	  window->next = window->next->next;
-	  window_list_free_window(window_delete);
+	  window_list_free_window(window_delete, true);
 	  break;
 	}
 }
@@ -149,10 +138,17 @@ window_list_cleanup(void)
   window_t *window = globalconf.windows;
   window_t *window_next;
 
+  /* Destroy  the binary  tree,  values will  be  actually freed  when
+     clearing the linked list */
+  util_itree_free(globalconf.windows_itree);
+
   while(window != NULL)
     {
       window_next = window->next;
-      window_list_free_window(window);
+
+      /* Do not  remove it from the  itree as this is  already done by
+         util_itree_free() */
+      window_list_free_window(window, false);
       window = window_next;
     }
 }
@@ -513,6 +509,8 @@ window_manage_existing(const int nwindows,
 	xcb_get_geometry_unchecked(globalconf.connection,
 				   new_windows_id[nwindow]);
     }
+
+  globalconf.windows_itree = util_itree_new();
 
   window_t *new_windows[nwindows];
   for(int nwindow = 0; nwindow < nwindows; ++nwindow)

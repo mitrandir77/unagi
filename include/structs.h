@@ -36,6 +36,7 @@
 #include "rendering.h"
 #include "plugin.h"
 #include "atoms.h"
+#include "util.h"
 
 /** Hold information related to the X extension */
 typedef struct _display_extensions_t
@@ -93,6 +94,8 @@ typedef struct _conf_t
   xcb_window_t cm_window;
   /** The list of all windows as objects */
   window_t *windows;
+  /** Binary Trees used for lookups (The list is still useful for stack order) */
+  util_itree_t *windows_itree;
   /** Damaged region which must be repainted */
   xcb_xfixes_region_t damaged;
   /** Confuse configuration file options */

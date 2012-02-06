@@ -32,6 +32,8 @@
 #include <xcb/damage.h>
 #include <xcb/xfixes.h>
 
+#include "util.h"
+
 #define WINDOW_FULLY_DAMAGED_RATIO 0.9
 
 typedef struct _window_t
@@ -53,7 +55,17 @@ typedef struct _window_t
 
 void window_free_pixmap(window_t *);
 void window_list_cleanup(void);
-window_t *window_list_get(const xcb_window_t);
+
+/** Get the  window object  associated with the  given Window  XID. As
+ *  this is a very common operation, use a binary tree rather than the
+ *  linked list. The linked list is still useful to get windows sorted
+ *  by stacking order
+ *
+ * \param WINDOW_ID The Window XID to look for
+ */
+#define window_list_get(WINDOW_ID) util_itree_get(globalconf.windows_itree, \
+                                                  WINDOW_ID)
+
 void window_list_remove_window(window_t *);
 void window_register_notify(const window_t *);
 void window_get_root_background_pixmap(void);

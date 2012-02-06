@@ -1,6 +1,7 @@
 /* -*-mode:c;coding:utf-8; c-basic-offset:2;fill-column:70;c-file-style:"gnu"-*-
  *
- * Copyright (C) 2009 Arnaud "arnau" Fontaine <arnau@mini-dweeb.org>
+ * Copyright (C) 2012 Gaël Le Mignot <kilobug@kilobug.org>
+ *               2009-2012 Arnaud "arnau" Fontaine <arnau@mini-dweeb.org>
  *
  * This  program is  free  software: you  can  redistribute it  and/or
  * modify  it under the  terms of  the GNU  General Public  License as
@@ -25,6 +26,7 @@
 #define UTIL_H
 
 #include <system.h>
+#include <stdint.h>
 
 #ifdef HAVE_SYS_TYPES_H
 # include <sys/types.h>
@@ -64,4 +66,28 @@ void _debug(int, const char *, const char *, ...)
         *__ptr = NULL;                             \
   }
 
-#endif
+typedef struct _util_itree_t
+{
+  uint32_t key;
+  int height;
+  void *value;
+  struct _util_itree_t *left;
+  struct _util_itree_t *right;
+  struct _util_itree_t *parent;
+} util_itree_t;
+
+util_itree_t *util_itree_new(void);
+util_itree_t *util_itree_insert(util_itree_t *, uint32_t, void *);
+void *util_itree_get(util_itree_t *, uint32_t);
+util_itree_t *util_itree_remove(util_itree_t *, uint32_t);
+uint32_t util_itree_size(util_itree_t *);
+void util_itree_free(util_itree_t *);
+
+#ifdef __DEBUG__
+#include <stdio.h>
+
+void util_itree_print(FILE *, util_itree_t *);
+int util_itree_check(FILE *, util_itree_t *);
+#endif /* __DEBUG__ */
+
+#endif /* UTIL_H */
