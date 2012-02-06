@@ -115,11 +115,19 @@ fi
 
 AC_SUBST(CFLAGS)
 
+# Doxygen support (nothing enabled by default), require autoconf-archive when
+# calling autogen.sh
+DX_HTML_FEATURE(ON)
+DX_PDF_FEATURE(OFF)
+DX_PS_FEATURE(OFF)
+DX_INIT_DOXYGEN([$PACKAGE_NAME], [doxygen.cfg], [api])
+
 AC_CONFIG_FILES([Makefile
 	include/Makefile
 	src/Makefile
 	rendering/Makefile
 	plugins/Makefile
+	doc/Makefile
 	unagi.pc])
 
 AC_OUTPUT

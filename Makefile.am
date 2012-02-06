@@ -7,7 +7,7 @@ EXTRA_DIST = COPYING \
 pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA = unagi.pc
 
-SUBDIRS = include src rendering plugins
+SUBDIRS = include src rendering plugins doc
 
 dist-hook: ChangeLog
 
