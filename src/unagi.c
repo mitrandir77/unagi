@@ -120,7 +120,7 @@ _unagi_parse_command_line_parameters(int argc, char **argv)
       switch(opt)
 	{
 	case 'v':
-	  printf(VERSION);
+	  printf(VERSION "\n");
 	  exit(EXIT_SUCCESS);
 	  break;
 	case 'h':
