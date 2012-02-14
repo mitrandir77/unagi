@@ -42,6 +42,13 @@ apt-get install xcb-proto libxcb1 libxcb-composite0-dev libxcb-xfixes0-dev \
         libxcb-render-util0-dev libconfuse-dev libev-dev libxdg-basedir-dev \
         pkg-config
 
+Also, if you  want to build developer documentation  with Doxygen, you
+must  install  doxygen  and  autoconf-archive  (for  Doxygen  autoconf
+macro). On Debian-based distribution, you  can install these by typing
+the following command as root:
+
+apt-get install doxygen autoconf-archive
+
 Basic Installation
 ==================
 

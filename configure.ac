@@ -116,11 +116,28 @@ fi
 AC_SUBST(CFLAGS)
 
 # Doxygen support (nothing enabled by default), require autoconf-archive when
-# calling autogen.sh
-DX_HTML_FEATURE(ON)
-DX_PDF_FEATURE(OFF)
-DX_PS_FEATURE(OFF)
-DX_INIT_DOXYGEN([$PACKAGE_NAME], [doxygen.cfg], [api])
+# calling autogen.sh.
+#
+# TODO: This is a bit ugly to define AM_CONDITIONAL but is there really a
+# better way?
+AC_MSG_CHECKING([for Doxygen macro (from autoconf-archive)])
+m4_ifdef([DX_INIT_DOXYGEN],
+         [AC_MSG_RESULT([yes])
+          DX_HTML_FEATURE(ON)
+          DX_PDF_FEATURE(OFF)
+          DX_PS_FEATURE(OFF)
+          DX_INIT_DOXYGEN([$PACKAGE_NAME], [doxygen.cfg], [api])],
+         [AC_MSG_RESULT([no])
+          AM_CONDITIONAL([DX_COND_doc], [false])
+          AM_CONDITIONAL([DX_COND_html], [false])
+          AM_CONDITIONAL([DX_COND_chm], [false])
+          AM_CONDITIONAL([DX_COND_chi], [false])
+          AM_CONDITIONAL([DX_COND_man], [false])
+          AM_CONDITIONAL([DX_COND_rtf], [false])
+          AM_CONDITIONAL([DX_COND_xml], [false])
+          AM_CONDITIONAL([DX_COND_ps], [false])
+          AM_CONDITIONAL([DX_COND_pdf], [false])
+          AM_CONDITIONAL([DX_COND_latex], [false])])
 
 AC_CONFIG_FILES([Makefile
 	include/Makefile
