@@ -66,6 +66,8 @@ typedef struct
   xcb_render_query_pict_formats_reply_t *pict_formats;
   /** A8 PictFormat used mainly for alpha Picture (opacity) */
   xcb_render_pictformat_t a8_pictformat_id;
+  /** ARGB PictFormat used for ARGB Windows */
+  xcb_render_pictformat_t argb_pictformat_id;
   /** Picture Visual supported by the screen */
   xcb_render_pictvisual_t *pictvisual;
   /** Only the opacity plugins needs such hook ATM, but well something
@@ -82,6 +84,8 @@ typedef struct
 {
   /** Picture associated with the Window Pixmap */
   xcb_render_picture_t picture;
+  /** ARGB Window */
+  bool is_argb;
   /** Pointer to global alpha picture */
   _render_alpha_picture_t *alpha_picture;
 } _render_window_t;
@@ -331,6 +335,10 @@ _render_init_root_picture(void)
   _render_conf.a8_pictformat_id =
     xcb_render_util_find_standard_format(_render_conf.pict_formats,
                                          XCB_PICT_STANDARD_A_8)->id;
+
+  _render_conf.argb_pictformat_id =
+    xcb_render_util_find_standard_format(_render_conf.pict_formats,
+                                         XCB_PICT_STANDARD_ARGB_32)->id;
 
   /* Create Picture associated with the root window */
   {
@@ -588,6 +596,9 @@ render_paint_window(window_t *window)
 	xcb_render_util_find_visual_format(_render_conf.pict_formats,
 					   window->attributes->visual);
 
+      render_window->is_argb = (window_pictvisual->format ==
+                                _render_conf.argb_pictformat_id);
+
       xcb_render_create_picture(globalconf.connection,
 				render_window->picture, window->pixmap,
 				window_pictvisual->format,
@@ -598,8 +609,10 @@ render_paint_window(window_t *window)
   uint8_t render_composite_op = XCB_RENDER_PICT_OP_SRC;
   xcb_render_picture_t alpha_picture = XCB_NONE;
 
-  if(_render_conf.opacity_plugin &&
-     _render_conf.opacity_plugin->vtable->window_get_opacity)
+  if(render_window->is_argb)
+    render_composite_op = XCB_RENDER_PICT_OP_OVER;
+  else if(_render_conf.opacity_plugin &&
+          _render_conf.opacity_plugin->vtable->window_get_opacity)
     {
       alpha_picture =
         _render_get_window_alpha_picture(render_window,
