@@ -9,23 +9,26 @@ following libraries:
 
 * Main XCB libraries:
  - xcb-proto (>= 1.6)
- - libxcb (>= 1.4)
+ - libxcb (>= 1.8)
  - libxcb-composite
  - libxcb-xfixes
  - libxcb-damage
  - libxcb-shape
  - libxcb-image
  - libxcb-render
+ - libxcb-randr
 
 * xcb-util libraries:
  - libxcb-aux
  - libxcb-keysyms
  - libxcb-event
  - libxcb-ewmh
+ - libxcb-renderutil
 
 * Other libraries and tools:
  - x11proto-core
  - libconfuse
+ - libev
  - libxdg-basedir (>= 1.0.0)
  - pkg-config
 
@@ -34,9 +37,10 @@ can install these libraries by typing the following command as root:
 
 apt-get install xcb-proto libxcb1 libxcb-composite0-dev libxcb-xfixes0-dev \
 	libxcb-damage0-dev libxcb-shape0-dev libxcb-image0-dev \
-	libxcb-render0-dev libxcb-aux0-dev libxcb-keysyms1-dev \
-	libxcb-event1-dev libxcb-ewmh1-dev x11proto-core-dev libconfuse-dev \
-	libxdg-basedir-dev pkg-config
+	libxcb-render0-dev libxcb-aux0-dev libxcb-keysyms1-dev  \
+	libxcb-event1-dev libxcb-ewmh1-dev libxcb-randr0-dev x11proto-core-dev \
+        libxcb-render-util0-dev libconfuse-dev libev-dev libxdg-basedir-dev \
+        pkg-config
 
 Basic Installation
 ==================
