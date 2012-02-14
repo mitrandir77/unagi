@@ -13,7 +13,6 @@ following libraries:
  - libxcb-composite
  - libxcb-xfixes
  - libxcb-damage
- - libxcb-shape
  - libxcb-image
  - libxcb-render
  - libxcb-randr
@@ -36,11 +35,10 @@ On Debian-like distribution (require at least testing for Debian), you
 can install these libraries by typing the following command as root:
 
 apt-get install xcb-proto libxcb1 libxcb-composite0-dev libxcb-xfixes0-dev \
-	libxcb-damage0-dev libxcb-shape0-dev libxcb-image0-dev \
-	libxcb-render0-dev libxcb-aux0-dev libxcb-keysyms1-dev  \
-	libxcb-event1-dev libxcb-ewmh1-dev libxcb-randr0-dev x11proto-core-dev \
-        libxcb-render-util0-dev libconfuse-dev libev-dev libxdg-basedir-dev \
-        pkg-config
+	libxcb-damage0-dev libxcb-image0-dev libxcb-render0-dev libxcb-aux0-dev \
+        libxcb-keysyms1-dev libxcb-event1-dev libxcb-ewmh1-dev \
+        libxcb-randr0-dev x11proto-core-dev libxcb-render-util0-dev \
+        libconfuse-dev libev-dev libxdg-basedir-dev pkg-config
 
 Also, if you  want to build developer documentation  with Doxygen, you
 must  install  doxygen  and  autoconf-archive  (for  Doxygen  autoconf

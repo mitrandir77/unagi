@@ -50,7 +50,6 @@ AC_SEARCH_LIBS([ev_default_loop], [ev], [], [AC_MSG_ERROR([Require libev])])
 PKG_CHECK_MODULES(RENDER_BACKEND, [
 	  xcb-renderutil
 	  xcb-render
-	  xcb-shape
 ])
 
 AC_SUBST(RENDER_BACKEND_CFLAGS)
