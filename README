@@ -9,11 +9,12 @@ following command:
 
 $ unagi
 
-It  will look  for  a configuration  file  in `$sysconfigdir/xdg'  (by
-default  `/usr/local/etc/xdg'), then  fallback on  the paths  given in
-`XDG_CONFIG_DIRS' (as specified in `XDG Base Directory Specification')
-if it cannot find it. You can also specified the configuration file by
-passing `-c' option.
+It  will look  for a  configuration file  in `$sysconfigdir/xdg/'  (by
+default `/usr/local/etc/xdg/'), then fallback on XDG Base Directories,
+namely   `$HOME/.config/'  then   `/etc/xdg/',  if   `XDG_CONFIG_DIRS'
+environment  variable  is  not  defined (as  specified  in  `XDG  Base
+Directory Specification').   You can also specified  the configuration
+file by passing `-c' option.
 
 You may  find the program  documentation in doc/ directory  in various
 format (HTML, LaTeX and man pages).
