@@ -100,17 +100,17 @@ CFLAGS="$CFLAGS -Wformat-nonliteral -Wall -Wextra -Wunused-parameter \
 	       -Wpointer-arith -Wredundant-decls -Wno-format-zero-length \
 	       -Wmissing-format-attribute -Wstrict-prototypes"
 
-AC_ARG_ENABLE(debug,
-        [  --enable-debug          enter debugging mode],
-        [HAVE_DEBUG=yes],
-        [HAVE_DEBUG=no])
+AC_ARG_ENABLE([debug],
+	[  --enable-debug          enter debugging mode],
+	[ case "${enableval}" in
+	  yes) debug=true ;;
+	  no)  debug=false ;;
+	  *) AC_MSG_ERROR([bad value ${enableval} for --enable-debug]) ;;
+	esac],[debug=false])
 
-AM_CONDITIONAL([DEBUG], [test x$HAVE_DEBUG = xyes])
+AM_CONDITIONAL([DEBUG], [ test "x$debug" = "xtrue" ])
 
-if test "x$HAVE_DEBUG" = "xyes"
-then
-   CFLAGS="$CFLAGS -ggdb -O0 -D__DEBUG__"
-fi
+AM_COND_IF([DEBUG], [ CFLAGS="$CFLAGS -ggdb -O0 -D__DEBUG__" ])
 
 AC_SUBST(CFLAGS)
 
