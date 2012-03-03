@@ -2,7 +2,7 @@
 
 AC_PREREQ([2.61])
 AC_INIT([unagi],
-	[0.3],
+	[0.3.1],
 	[Arnaud Fontaine <arnau@mini-dweeb.org])
 
 AC_CONFIG_MACRO_DIR([m4])
