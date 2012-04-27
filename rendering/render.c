@@ -611,7 +611,7 @@ render_paint_window(window_t *window)
 
   if(render_window->is_argb)
     render_composite_op = XCB_RENDER_PICT_OP_OVER;
-  else if(_render_conf.opacity_plugin &&
+  if(_render_conf.opacity_plugin &&
           _render_conf.opacity_plugin->vtable->window_get_opacity)
     {
       alpha_picture =
