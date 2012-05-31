@@ -78,7 +78,7 @@ bool window_is_visible(const window_t *);
 void window_get_invisible_window_pixmap(window_t *);
 void window_get_invisible_window_pixmap_finalise(window_t *);
 void window_manage_existing(const int nwindows, const xcb_window_t *);
-window_t *window_add(const xcb_window_t);
+window_t *window_add(const xcb_window_t, bool);
 void window_restack(window_t *, xcb_window_t);
 void window_paint_all(window_t *);
 

@@ -503,7 +503,7 @@ event_handle_create_notify(xcb_create_notify_event_t *event)
 
   /* Add  the  new window  whose  identifier  is  given in  the  event
      itself and  */
-  window_t *new_window = window_add(event->window);
+  window_t *new_window = window_add(event->window, false);
   if(!new_window)
     {
       debug("Cannot create window %jx", (uintmax_t) event->window);
@@ -609,7 +609,7 @@ event_handle_reparent_notify(xcb_reparent_notify_event_t *event)
   /* Add the window if it is not already managed */ 
   if(event->parent == globalconf.screen->root ||
      !window_list_get(event->window))
-    window_add(event->window);
+    window_add(event->window, true);
   /* Don't manage the window if the parent is not the root window */
   else
     window_list_remove_window(window);

@@ -425,38 +425,57 @@ window_get_invisible_window_pixmap_finalise(window_t *window)
   window_set_override_redirect(window, false);
 }
 
+typedef struct
+{
+  xcb_get_window_attributes_cookie_t attributes;
+  xcb_get_geometry_cookie_t geometry;
+} window_add_requests_cookies_t;
+
 /** Send requests when a window is added (CreateNotify or on startup),
- *  e.g. GetWindowAttributes request
+ *  e.g. GetWindowAttributes request and  GetGeometry if specified (in
+ *  most cases,  it is necessary  except on CreateNotify event  as the
+ *  geometry is already given in the event itself)
  *
  * \param window_id The Window XID
+ * \param get_geometry Should GetGeometry request be sent
  * \return The cookie associated with the request
  */
-static xcb_get_window_attributes_cookie_t
-window_add_requests(const xcb_window_t window_id)
+static window_add_requests_cookies_t
+window_add_requests(const xcb_window_t window_id, bool get_geometry)
 {
-  return xcb_get_window_attributes(globalconf.connection, window_id);
+  window_add_requests_cookies_t cookies;
+  cookies.geometry.sequence = 0;
+
+  cookies.attributes = xcb_get_window_attributes(globalconf.connection,
+                                                 window_id);
+
+  cookies.geometry = xcb_get_geometry(globalconf.connection, window_id);
+
+  return cookies;
 }
 
-/** Get  the GetWindowAttributes  reply and  also associated  a Damage
- *  object  to it and  set the  attributes field  of the  given window
+/** Get  the GetWindowAttributes  and GetGeometry  (if requested  when
+ *  calling window_add_requests) replies and  also associated a Damage
+ *  object to  it and  set the  attributes field  of the  given window
  *  object
  *
+ * \see window_add_requests
  * \param window The window object
  * \param attributes_cookie The cookie associated with the GetWindowAttributes request
  * \return The GetWindowAttributes reply
  */
-static xcb_get_window_attributes_reply_t *
+static bool
 window_add_requests_finalise(window_t * const window,
-			     const xcb_get_window_attributes_cookie_t attributes_cookie)
+			     const window_add_requests_cookies_t window_add_cookies)
 {
   window->attributes = xcb_get_window_attributes_reply(globalconf.connection,
-						       attributes_cookie,
+						       window_add_cookies.attributes,
 						       NULL);
 
   if(!window->attributes)
     {
       debug("GetWindowAttributes failed for window %jx", (uintmax_t) window->id);
-      return NULL;
+      return false;
     }
 
   /* No  need to create  a Damage  object for  an InputOnly  window as
@@ -476,7 +495,20 @@ window_add_requests_finalise(window_t * const window,
 			XCB_DAMAGE_REPORT_LEVEL_DELTA_RECTANGLES);
     }
 
-  return window->attributes;
+  if(window_add_cookies.geometry.sequence)
+    {
+      window->geometry = xcb_get_geometry_reply(globalconf.connection,
+                                                window_add_cookies.geometry,
+                                                NULL);
+
+      if(!window->geometry)
+        {
+          debug("GetGeometry failed for window %jx", (uintmax_t) window->id);
+          return false;
+        }
+    }
+
+  return true;
 }
 
 /** Manage  all  existing   windows  and  get  information  (geometry,
@@ -490,25 +522,13 @@ void
 window_manage_existing(const int nwindows,
 		       const xcb_window_t * const new_windows_id)
 {
-  xcb_get_window_attributes_cookie_t attributes_cookies[nwindows];
-  xcb_get_geometry_cookie_t geometry_cookies[nwindows];
+  window_add_requests_cookies_t window_add_cookies[nwindows];
 
   for(int nwindow = 0; nwindow < nwindows; ++nwindow)
-    {
-      /* Ignore the CM window */
-      if(new_windows_id[nwindow] == globalconf.cm_window)
-	continue;
-
-      attributes_cookies[nwindow] =
-	window_add_requests(new_windows_id[nwindow]);
-
-      /* Only  necessary  when adding  all  the  windows, otherwise  a
-	 window  is only  added on  CreateNotify event  which actually
-	 contains the window geometry */
-      geometry_cookies[nwindow] =
-	xcb_get_geometry_unchecked(globalconf.connection,
-				   new_windows_id[nwindow]);
-    }
+    /* Ignore the CM window */
+    if(new_windows_id[nwindow] != globalconf.cm_window)
+      window_add_cookies[nwindow] = window_add_requests(new_windows_id[nwindow],
+                                                        true);
 
   globalconf.windows_itree = util_itree_new();
 
@@ -523,17 +543,12 @@ window_manage_existing(const int nwindows,
 	continue;
 
       if(!window_add_requests_finalise(new_windows[nwindow],
-					attributes_cookies[nwindow]))
+					window_add_cookies[nwindow]))
 	{
           warn("Cannot manage window %jx", (uintmax_t) new_windows_id[nwindow]);
 	  window_list_remove_window(new_windows[nwindow]);
 	  continue;
 	}
-
-      new_windows[nwindow]->geometry =
-	xcb_get_geometry_reply(globalconf.connection,
-			       geometry_cookies[nwindow],
-			       NULL);
 
       /* The opacity  property is only  meaningful when the  window is
 	 mapped, because when the window is unmapped, we don't receive
@@ -559,22 +574,23 @@ window_manage_existing(const int nwindows,
 
 /** Add  the  given   window  to  the  windows  list   and  also  send
  *  GetWindowAttributes request  (no need  to split this  function for
- *  now)
+ *  now) and GetGeometry if specified
  *
+ * \see window_add_requests
  * \param new_window_id The new Window XID
+ * \param get_geometry Should GetGeometry request be sent
  * \return The new window object
  */
 window_t *
-window_add(const xcb_window_t new_window_id)
+window_add(const xcb_window_t new_window_id, bool get_geometry)
 {
-  xcb_get_window_attributes_cookie_t attributes_cookie =
-    window_add_requests(new_window_id);
+  window_add_requests_cookies_t cookies = window_add_requests(new_window_id,
+                                                              get_geometry);
 
   window_t *new_window = window_list_append(new_window_id);
 
   /* The request should never fail... */
-  if(!window_add_requests_finalise(new_window,
-				    attributes_cookie))
+  if(!window_add_requests_finalise(new_window, cookies))
     {
       window_list_remove_window(new_window);
       return NULL;
