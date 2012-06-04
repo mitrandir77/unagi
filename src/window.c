@@ -36,6 +36,7 @@
 #include "window.h"
 #include "structs.h"
 #include "atoms.h"
+#include "display.h"
 
 /** Append a window to the end  of the windows list which is organized
  *  from the bottommost to the topmost window
@@ -656,6 +657,11 @@ window_restack(window_t *window, xcb_window_t window_new_above_id)
 void
 window_paint_all(window_t *windows)
 {
+  /* If the background  is reset, then repaint the  whole screen, it's
+     bad from a performance point of view, but it's done rarely */
+  if(globalconf.background_reset)
+    display_reset_damaged();
+
   (*globalconf.rendering->paint_background)();
 
   for(window_t *window = windows; window; window = window->next)
@@ -686,5 +692,6 @@ window_paint_all(window_t *windows)
     }
 
   (*globalconf.rendering->paint_all)();
+  globalconf.background_reset = false;
   xcb_aux_sync(globalconf.connection);
 }

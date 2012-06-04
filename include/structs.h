@@ -78,6 +78,8 @@ typedef struct _conf_t
   int screen_nbr;
   /** The screen information */
   xcb_screen_t *screen;
+  /** If the background has been reset */
+  bool background_reset;
   /** Maximum painting interval in seconds (from screen refresh rate) */
   float refresh_rate_interval;
   /** Repaint interval computed from the painting time average */

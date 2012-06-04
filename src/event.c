@@ -422,6 +422,7 @@ event_handle_configure_notify(xcb_configure_notify_event_t *event)
       globalconf.screen->width_in_pixels = event->width;
       globalconf.screen->height_in_pixels = event->height;
 
+      globalconf.background_reset = true;
       (*globalconf.rendering->reset_background)();
 
       return;
@@ -668,6 +669,7 @@ event_handle_property_notify(xcb_property_notify_event_t *event)
      event->window == globalconf.screen->root)
     {
       debug("New background Pixmap set");
+      globalconf.background_reset = true;
       (*globalconf.rendering->reset_background)();
     }
 
