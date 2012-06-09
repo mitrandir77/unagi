@@ -15,4 +15,8 @@ dist-hook: ChangeLog
 ChangeLog:
 	git log > ChangeLog
 
-.PHONY: ChangeLog
+distclean-local: distclean-local-ChangeLog
+distclean-local-ChangeLog:
+	rm -f ChangeLog
+
+.PHONY: ChangeLog distclean-local-ChangeLog
