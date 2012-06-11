@@ -11,10 +11,9 @@ SUBDIRS = include src rendering plugins doc
 dist-hook: ChangeLog
 
 ChangeLog:
-	git log > ChangeLog
+	git log > $(top_srcdir)/ChangeLog || \
+		echo 'Could not generate ChangeLog, git directory not available?'
 
-distclean-local: distclean-local-ChangeLog
-distclean-local-ChangeLog:
-	rm -f ChangeLog
+MAINTAINERCLEANFILES = ChangeLog
 
-.PHONY: ChangeLog distclean-local-ChangeLog
+.PHONY: ChangeLog
